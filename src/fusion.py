@@ -72,10 +72,14 @@ def depth_to_pointcloud(
         v_v = v_v[idx]
 
     # Get RGB colors
+    # Depth pixels and RGB pixels can have different resolutions. Convert the
+    # depth-map coordinates into the actual RGB-image coordinate system.
     rgb_h, rgb_w = rgb_img.shape[:2]
-    u_clip = np.clip(u_v, 0, rgb_w - 1).astype(int)
-    v_clip = np.clip(v_v, 0, rgb_h - 1).astype(int)
-    colors = rgb_img[v_clip, u_clip].astype(np.float32)  # (N, 3)
+    sx = rgb_w / float(W)
+    sy = rgb_h / float(H)
+    u_rgb = np.clip(np.rint(u_v * sx), 0, rgb_w - 1).astype(int)
+    v_rgb = np.clip(np.rint(v_v * sy), 0, rgb_h - 1).astype(int)
+    colors = rgb_img[v_rgb, u_rgb].astype(np.float32)  # (N, 3)
 
     # Stack XYZ + RGB
     xyzrgb = np.concatenate([X_world.astype(np.float32), colors], axis=1)  # (N, 6)
@@ -123,6 +127,8 @@ def fuse_depth_maps(
         img_path = img_path_dict.get(ref_name)
         if img_path is None:
             continue
+        # Keep the source RGB image at its natural processing size. Colour
+        # coordinates are explicitly scaled in depth_to_pointcloud().
         rgb = load_image_rgb(img_path, max_dim)
         if rgb is None:
             continue
