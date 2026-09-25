@@ -1,12 +1,7 @@
-"""
-depth.py — Semi-dense depth estimation using sparse-SfM-guided plane sweep.
+"""Semi-dense depth estimation for the PIXEL-OPS photogrammetry pipeline.
 
-The dense stage is deliberately constrained by the sparse reconstruction:
-  1. choose reference/neighbor cameras with actual shared landmarks;
-  2. derive a per-camera depth interval from visible sparse 3D landmarks;
-  3. sweep that interval at higher resolution;
-  4. keep only pixels with both a good NCC score and a decisive best-vs-second-best margin;
-  5. avoid aggressive depth filling so invalid stereo pixels do not become fake geometry.
+Uses a vectorised plane-sweep ZNCC stereo method.  Depth hypotheses are
+constrained by the sparse SfM landmarks visible in each reference camera.
 """
 
 import os
@@ -25,35 +20,29 @@ logger = logging.getLogger(__name__)
 
 
 def compute_homography_plane(
-    K1: np.ndarray,
-    R1: np.ndarray, t1: np.ndarray,
-    K2: np.ndarray,
-    R2: np.ndarray, t2: np.ndarray,
-    depth: float,
-    normal: np.ndarray = None,
+    K1: np.ndarray, R1: np.ndarray, t1: np.ndarray,
+    K2: np.ndarray, R2: np.ndarray, t2: np.ndarray,
+    depth: float, normal: np.ndarray = None,
 ) -> np.ndarray:
-    """Compute homography mapping ref-image pixels at Z=depth to the neighbour."""
+    """Homography mapping reference pixels on a fronto-parallel plane to neighbour."""
     if normal is None:
         normal = np.array([0.0, 0.0, 1.0])
     R_rel = R2 @ R1.T
     t_rel = t2 - R_rel @ t1
-    H = K2 @ (R_rel + np.outer(t_rel, normal) / depth) @ np.linalg.inv(K1)
-    return H
+    return K2 @ (R_rel + np.outer(t_rel, normal) / depth) @ np.linalg.inv(K1)
 
 
 def warp_image(img: np.ndarray, H: np.ndarray) -> np.ndarray:
-    """Warp neighbour image into the reference image coordinate frame."""
+    """Warp neighbour image into reference-image coordinates."""
     h, w = img.shape[:2]
     return cv2.warpPerspective(
-        img, H, (w, h),
-        flags=cv2.INTER_LINEAR,
-        borderMode=cv2.BORDER_CONSTANT,
-        borderValue=0,
+        img, H, (w, h), flags=cv2.INTER_LINEAR,
+        borderMode=cv2.BORDER_CONSTANT, borderValue=0,
     )
 
 
 def compute_zncc_image(ref: np.ndarray, warped: np.ndarray, win: int = 9) -> np.ndarray:
-    """Compute per-pixel zero-mean normalized cross correlation."""
+    """Compute a per-pixel local zero-mean normalized cross correlation map."""
     ref_f = ref.astype(np.float32)
     warp_f = warped.astype(np.float32)
     mu1 = cv2.boxFilter(ref_f, -1, (win, win))
@@ -68,55 +57,59 @@ def compute_zncc_image(ref: np.ndarray, warped: np.ndarray, win: int = 9) -> np.
     return np.clip(zncc, -1.0, 1.0)
 
 
-def _camera_depth_range_from_landmarks(
+def _adaptive_depth_range(
     ref_name: str,
     cam: Camera,
     state,
-    depth_cfg: Dict,
-) -> Tuple[float, float]:
-    """Estimate a useful Z-depth interval from sparse SfM landmarks visible in a camera."""
-    global_min = float(depth_cfg.get("d_min", 0.5))
-    global_max = float(depth_cfg.get("d_max", 80.0))
-    depths = []
+    cfg: Dict,
+) -> Tuple[float, float, int]:
+    """Estimate a robust per-camera Z range from sparse SfM landmarks."""
+    dc = cfg.get("depth", {})
+    fallback_lo = float(dc.get("d_min", 0.5))
+    fallback_hi = float(dc.get("d_max", 50.0))
+    if not dc.get("adaptive_depth_range", True) or state is None:
+        return fallback_lo, fallback_hi, 0
 
+    zs = []
     for lm in state.landmarks.values():
         if ref_name not in lm.observations:
             continue
         try:
-            z = float((cam.R @ lm.xyz + cam.t)[2])
-            if np.isfinite(z) and z > 0:
-                depths.append(z)
+            X_cam = cam.R @ lm.xyz + cam.t
+            z = float(X_cam[2])
+            if z <= 0 or not np.isfinite(z):
+                continue
+            uv = cam.project(lm.xyz.reshape(1, 3))[0]
+            if not np.isfinite(uv).all():
+                continue
+            if 0 <= uv[0] < cam.width and 0 <= uv[1] < cam.height:
+                zs.append(z)
         except Exception:
             continue
 
-    if len(depths) < 20:
-        logger.warning(
-            "  [%s] only %d sparse depth samples; using configured fallback [%.2f, %.2f]",
-            ref_name, len(depths), global_min, global_max,
-        )
-        return global_min, global_max
+    min_landmarks = int(dc.get("adaptive_min_landmarks", 20))
+    if len(zs) < min_landmarks:
+        return fallback_lo, fallback_hi, len(zs)
 
-    vals = np.asarray(depths, dtype=np.float64)
-    p02, p98 = np.percentile(vals, [2.0, 98.0])
-    span = max(float(p98 - p02), 1e-3)
-    pad = max(0.10 * span, 0.5)
+    zs = np.asarray(zs, dtype=np.float64)
+    p_lo, p_hi = dc.get("depth_range_percentiles", [5.0, 95.0])
+    lo = float(np.percentile(zs, p_lo))
+    hi = float(np.percentile(zs, p_hi))
+    span = max(hi - lo, 1e-6)
+    pad_fraction = float(dc.get("depth_range_padding", 0.20))
+    pad = max(span * pad_fraction, float(np.median(zs)) * 0.03)
+    lo = max(0.05, lo - pad)
+    hi = hi + pad
 
-    d_lo = max(global_min, float(p02 - pad))
-    d_hi = min(global_max, float(p98 + pad))
+    min_span = float(dc.get("min_depth_range", 2.0))
+    if hi - lo < min_span:
+        mid = 0.5 * (hi + lo)
+        lo = max(0.05, mid - min_span / 2)
+        hi = mid + min_span / 2
 
-    # Never allow a nearly-zero sweep interval.
-    if d_hi <= d_lo + 1.0:
-        mid = float(np.median(vals))
-        half = max(1.0, 0.25 * span)
-        d_lo = max(global_min, mid - half)
-        d_hi = min(global_max, mid + half)
-
-    logger.info(
-        "  [%s] sparse-guided depth range [%.2f, %.2f] from %d landmarks "
-        "(p02=%.2f p98=%.2f)",
-        ref_name, d_lo, d_hi, len(vals), p02, p98,
-    )
-    return d_lo, d_hi
+    max_hi = float(dc.get("max_adaptive_depth", 2000.0))
+    hi = min(hi, max_hi)
+    return lo, hi, len(zs)
 
 
 def estimate_depth_for_image(
@@ -127,26 +120,19 @@ def estimate_depth_for_image(
     cfg: Dict,
     state=None,
 ) -> Optional[np.ndarray]:
-    """Estimate a sparse-SfM-guided depth map using plane-sweep ZNCC."""
+    """Estimate a depth map with an adaptive plane-sweep and confidence test."""
     depth_cfg = cfg.get("depth", {})
-    n_hyp = int(depth_cfg.get("num_depth_hypotheses", 72))
+    n_hyp = int(depth_cfg.get("num_depth_hypotheses", 96))
     win = int(depth_cfg.get("patch_size", 9))
     ncc_thresh = float(depth_cfg.get("ncc_threshold", 0.35))
-    margin_thresh = float(depth_cfg.get("confidence_margin", 0.08))
+    confidence_margin = float(depth_cfg.get("confidence_margin", 0.04))
 
     cam_ref = cameras.get(ref_name)
     ref_gray = images_gray.get(ref_name)
     if cam_ref is None or not cam_ref.registered or ref_gray is None:
         return None
 
-    if state is not None:
-        d_min, d_max = _camera_depth_range_from_landmarks(
-            ref_name, cam_ref, state, depth_cfg
-        )
-    else:
-        d_min = float(depth_cfg.get("d_min", 0.5))
-        d_max = float(depth_cfg.get("d_max", 80.0))
-
+    d_min, d_max, n_landmarks = _adaptive_depth_range(ref_name, cam_ref, state, cfg)
     depth_hyps = np.linspace(d_min, d_max, max(8, n_hyp), dtype=np.float32)
     H_img, W_img = ref_gray.shape
 
@@ -159,111 +145,98 @@ def estimate_depth_for_image(
         cam_n = cameras.get(nm)
         img_n = images_gray.get(nm)
         if cam_n is not None and cam_n.registered and img_n is not None:
+            if img_n.shape != (H_img, W_img):
+                img_n = cv2.resize(img_n, (W_img, H_img), interpolation=cv2.INTER_AREA)
             nei_list.append((nm, cam_n, img_n))
-
     if not nei_list:
         return None
 
     for d in depth_hyps:
         agg_score = np.zeros((H_img, W_img), dtype=np.float32)
         valid_count = 0
-
         for nm, cam_n, img_n in nei_list:
-            if img_n.shape != (H_img, W_img):
-                img_n_rs = cv2.resize(img_n, (W_img, H_img), interpolation=cv2.INTER_AREA)
-            else:
-                img_n_rs = img_n
-
             try:
                 H_hom = compute_homography_plane(
                     cam_ref.K, cam_ref.R, cam_ref.t,
                     cam_n.K, cam_n.R, cam_n.t, float(d)
                 )
-                warped = warp_image(img_n_rs, H_hom)
-
-                # Warp validity: border pixels are zero. Use grayscale > 0 rather
-                # than treating black image content as valid stereo support.
-                warped_valid = (warped > 0).astype(np.float32)
+                warped = warp_image(img_n, H_hom)
+                valid_warp = (cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
+                              if warped.ndim == 3 else warped) > 0
                 zncc = compute_zncc_image(ref_gray, warped, win)
-                agg_score += zncc * warped_valid
+                agg_score += np.where(valid_warp, zncc, 0.0)
                 valid_count += 1
-            except Exception as e:
-                logger.debug(
-                    "Homography computation failed for %s depth %.3f: %s",
-                    ref_name, float(d), e,
-                )
+            except Exception as exc:
+                logger.debug("Depth homography failed at %.3f: %s", d, exc)
 
         if valid_count == 0:
             continue
-
-        agg_score /= float(valid_count)
-
+        agg_score /= valid_count
         better = agg_score > best_score
-        second_score[better] = best_score[better]
-        best_score[better] = agg_score[better]
-        best_depth[better] = float(d)
+        second_score = np.where(better, best_score, np.maximum(second_score, agg_score))
+        best_score = np.maximum(best_score, agg_score)
+        best_depth[better] = d
 
-        between = (~better) & (agg_score > second_score)
-        second_score[between] = agg_score[between]
-
-    confidence = best_score - second_score
+    confidence = best_score - np.maximum(second_score, -1.0)
     valid_mask = (
         (best_score >= ncc_thresh)
-        & (confidence >= margin_thresh)
-        & (best_depth >= d_min)
-        & (best_depth <= d_max)
+        & (confidence >= confidence_margin)
+        & (best_depth > 0)
     )
-
     depth_map = np.where(valid_mask, best_depth, 0.0).astype(np.float32)
 
     n_valid = int(valid_mask.sum())
-    pct_valid = 100.0 * n_valid / valid_mask.size
+    pct = 100.0 * n_valid / valid_mask.size
     if n_valid:
-        d_vals = depth_map[valid_mask]
-        pct_at_min = 100.0 * (d_vals <= d_min + 0.05 * max(d_max - d_min, 1.0)).sum() / n_valid
-        pct_at_max = 100.0 * (d_vals >= d_max - 0.05 * max(d_max - d_min, 1.0)).sum() / n_valid
+        vals = depth_map[valid_mask]
         logger.info(
             "  [%s] Raw depth: valid=%.1f%% median=%.2f std=%.2f "
-            "score_med=%.3f margin_med=%.3f edge[min,max]=%.1f%%/%.1f%%",
-            ref_name, pct_valid, float(np.median(d_vals)), float(d_vals.std()),
+            "range=[%.2f, %.2f] NCC=%.3f margin=%.3f landmarks=%d",
+            ref_name, pct, float(np.median(vals)), float(vals.std()),
+            float(vals.min()), float(vals.max()),
             float(np.median(best_score[valid_mask])),
-            float(np.median(confidence[valid_mask])),
-            pct_at_min, pct_at_max,
+            float(np.median(confidence[valid_mask])), n_landmarks,
         )
+        at_min = 100.0 * np.mean(vals <= d_min + 0.02 * max(d_max - d_min, 1e-6))
+        at_max = 100.0 * np.mean(vals >= d_max - 0.02 * max(d_max - d_min, 1e-6))
+        if at_min > 25 or at_max > 25:
+            logger.warning(
+                "  [%s] %.1f%% near d_min and %.1f%% near d_max; "
+                "depth range may still be too narrow",
+                ref_name, at_min, at_max,
+            )
     else:
-        logger.warning("  [%s] Raw depth has no confident pixels", ref_name)
+        logger.warning("  [%s] No confident raw depth pixels (NCC/margin thresholds)", ref_name)
 
-    # Filling is deliberately conservative and disabled by default. It is
-    # safer to fuse true stereo support than to turn invalid pixels into
-    # synthetic geometry.
-    if depth_cfg.get("depth_fill", False) and n_valid:
-        depth_map = fill_depth(depth_map, valid_mask)
+    # Do not synthesize large regions of geometry.  Optional fill is deliberately
+    # limited to one small pass and only used when the raw map has enough support.
+    if depth_cfg.get("depth_fill", False) and pct >= float(depth_cfg.get("min_valid_before_fill_pct", 15.0)):
+        depth_map = fill_depth(depth_map, valid_mask, iterations=int(depth_cfg.get("fill_iterations", 1)))
 
     return depth_map
 
 
-def fill_depth(depth_map: np.ndarray, valid_mask: np.ndarray = None) -> np.ndarray:
-    """Conservative one/two-pixel gap fill from measured depth only."""
+def fill_depth(depth_map: np.ndarray, valid_mask: np.ndarray = None, iterations: int = 1) -> np.ndarray:
+    """Conservatively fill tiny holes from nearby measured depth values."""
     filled = depth_map.copy()
     if valid_mask is not None and not valid_mask.any():
         return filled
-
     kernel = np.ones((3, 3), np.uint8)
-    for _ in range(2):
+    for _ in range(max(0, iterations)):
         dilated = cv2.dilate(filled, kernel)
-        candidate = (filled == 0) & (dilated > 0)
-        filled[candidate] = dilated[candidate]
-
+        filled = np.where(filled == 0, dilated, filled)
+    if filled.max() > 0:
+        # Very mild edge-preserving smoothing; never rescale the depth range.
+        filled = cv2.bilateralFilter(filled.astype(np.float32), 5, 1.5, 1.5)
+        if valid_mask is not None:
+            filled = np.where(
+                (valid_mask | (depth_map > 0)), filled, 0.0
+            ).astype(np.float32)
     return filled
 
 
-def _shared_landmark_count(state, ref_name: str, candidate: str) -> int:
-    count = 0
-    for lm in state.landmarks.values():
-        obs = lm.observations
-        if ref_name in obs and candidate in obs:
-            count += 1
-    return count
+def _camera_center(cam: Camera) -> np.ndarray:
+    return -cam.R.T @ cam.t
 
 
 def choose_reference_images(
@@ -272,57 +245,67 @@ def choose_reference_images(
     max_depth_images: int,
     n_neighbors: int,
 ) -> List[Tuple[str, List[str]]]:
-    """Choose references by landmark support and neighbours by actual overlap."""
+    """Choose references with good landmark support and neighbours with useful baseline."""
     registered_names = [
         nm for nm in image_names
-        if state.cameras.get(nm) and state.cameras[nm].registered
+        if state.cameras.get(nm) is not None and state.cameras[nm].registered
     ]
     if not registered_names:
         return []
 
     lm_per_cam = {nm: 0 for nm in registered_names}
-    for lm in state.landmarks.values():
+    observations = {nm: set() for nm in registered_names}
+    for lm_id, lm in state.landmarks.items():
         for nm in lm.observations:
-            if nm in lm_per_cam:
+            if nm in observations:
                 lm_per_cam[nm] += 1
+                observations[nm].add(lm_id)
 
-    sorted_cams = sorted(
-        registered_names,
-        key=lambda x: lm_per_cam.get(x, 0),
-        reverse=True,
-    )
-
+    sorted_cams = sorted(registered_names, key=lambda x: lm_per_cam[x], reverse=True)
     if max_depth_images > 0:
-        step = max(1, len(sorted_cams) // max_depth_images)
-        refs = sorted_cams[::step][:max_depth_images]
+        if len(sorted_cams) <= max_depth_images:
+            refs = sorted_cams
+        else:
+            idx = np.linspace(0, len(sorted_cams) - 1, max_depth_images).astype(int)
+            refs = [sorted_cams[i] for i in idx]
     else:
         refs = sorted_cams
 
+    centers = {nm: _camera_center(state.cameras[nm]) for nm in registered_names}
     results = []
+    min_shared = int(cfg_shared := 10)
+
     for ref in refs:
         candidates = []
-        cam_ref = state.cameras[ref]
-        C_ref = cam_ref.center
-
         for nm in registered_names:
             if nm == ref:
                 continue
-            shared = _shared_landmark_count(state, ref, nm)
-            if shared < 8:
+            shared = len(observations[ref].intersection(observations[nm]))
+            if shared < min_shared:
                 continue
-            cam_n = state.cameras[nm]
-            baseline = float(np.linalg.norm(cam_n.center - C_ref))
+            baseline = float(np.linalg.norm(centers[ref] - centers[nm]))
             candidates.append((shared, baseline, nm))
+        if not candidates:
+            # Fallback to nearest registered cameras, preserving deterministic order.
+            ref_idx = registered_names.index(ref)
+            fallback = []
+            for offset in range(1, len(registered_names)):
+                for sign in (1, -1):
+                    j = ref_idx + sign * offset
+                    if 0 <= j < len(registered_names):
+                        fallback.append(registered_names[j])
+                    if len(fallback) >= n_neighbors:
+                        break
+                if len(fallback) >= n_neighbors:
+                    break
+            if fallback:
+                results.append((ref, fallback[:n_neighbors]))
+            continue
 
-        # Prefer real image overlap first, then a useful non-zero baseline.
+        # Prefer overlap first, then a non-zero useful baseline.
         candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
-        neighbors = [nm for _, _, nm in candidates[:n_neighbors]]
-
-        if neighbors:
-            results.append((ref, neighbors))
-        else:
-            logger.warning("  [%s] no overlapping registered neighbours found", ref)
-
+        chosen = [x[2] for x in candidates[:n_neighbors]]
+        results.append((ref, chosen))
     return results
 
 
@@ -336,10 +319,7 @@ def load_image_gray_direct(img_path: Path, max_dim: int = 0) -> Optional[np.ndar
             h, w = img.shape
             scale = min(max_dim / max(w, h), 1.0)
             if scale < 1.0:
-                img = cv2.resize(
-                    img, (int(w * scale), int(h * scale)),
-                    interpolation=cv2.INTER_AREA,
-                )
+                img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
         return img
     except Exception:
         return None
@@ -360,29 +340,22 @@ def run_depth_estimation(
 
     depth_dir = ensure_dir(os.path.join(output_dir, "depth"))
     preview_dir = ensure_dir(os.path.join(output_dir, "depth_preview"))
-
-    depth_max_dim = min(
-        cfg.get("image", {}).get("resize_for_processing", 1600), 600
-    )
+    depth_max_dim = min(cfg.get("image", {}).get("resize_for_processing", 1600), 600)
     max_refs = int(depth_cfg.get("max_depth_images", 10))
     n_neighbors = int(depth_cfg.get("num_neighbors", 2))
 
     image_names = [p.name for p in images]
-    logger.info(
-        "[INFO] Loading images for depth estimation (max_dim=%d)...",
-        depth_max_dim,
-    )
-
+    logger.info("[INFO] Loading images for depth estimation (max_dim=%d)...", depth_max_dim)
     images_gray: Dict[str, np.ndarray] = {}
     img_path_dict = {p.name: p for p in images}
+
     for nm in image_names:
-        if not (state.cameras.get(nm) and state.cameras[nm].registered):
-            continue
-        p = img_path_dict.get(nm)
-        if p:
-            gray = load_image_gray_direct(p, depth_max_dim)
-            if gray is not None:
-                images_gray[nm] = gray
+        if state.cameras.get(nm) and state.cameras[nm].registered:
+            p = img_path_dict.get(nm)
+            if p:
+                gray = load_image_gray_direct(p, depth_max_dim)
+                if gray is not None:
+                    images_gray[nm] = gray
 
     scaled_cameras: Dict[str, Camera] = {}
     for nm, cam in cameras.items():
@@ -393,65 +366,45 @@ def run_depth_estimation(
         scale_x = dw / cam.width
         scale_y = dh / cam.height
         c = Camera(
-            image_name=cam.image_name,
-            width=dw, height=dh,
+            image_name=cam.image_name, width=dw, height=dh,
             fx=cam.fx * scale_x, fy=cam.fy * scale_y,
             cx=cam.cx * scale_x, cy=cam.cy * scale_y,
         )
-        c.R = cam.R
-        c.t = cam.t
-        c.registered = cam.registered
+        c.R, c.t, c.registered = cam.R.copy(), cam.t.copy(), cam.registered
         scaled_cameras[nm] = c
 
-    refs_and_neighbors = choose_reference_images(
-        state, image_names, max_refs, n_neighbors
-    )
+    refs_and_neighbors = choose_reference_images(state, image_names, max_refs, n_neighbors)
     logger.info(
         "[INFO] Estimating depth for %d images at %dpx "
-        "(sparse-guided plane-sweep ZNCC)...",
+        "(adaptive plane-sweep ZNCC)...",
         len(refs_and_neighbors), depth_max_dim,
     )
 
     depth_maps: Dict[str, np.ndarray] = {}
     t0 = time.time()
-
     for i, (ref_name, nei_names) in enumerate(refs_and_neighbors):
-        logger.info(
-            "  [%d/%d] Depth: %s (neighbors: %s)",
-            i + 1, len(refs_and_neighbors), ref_name, nei_names,
-        )
+        logger.info("  [%d/%d] Depth: %s (neighbors: %s)", i + 1, len(refs_and_neighbors), ref_name, nei_names)
         t_ref = time.time()
-
         depth_map = estimate_depth_for_image(
             ref_name, nei_names, scaled_cameras, images_gray, cfg, state=state
         )
-        if depth_map is None or depth_map.max() == 0:
+        if depth_map is None or depth_map.max() <= 0:
             logger.warning("  Depth estimation failed/empty for %s", ref_name)
             continue
-
-        valid = depth_map > 0
-        valid_pct = 100.0 * valid.sum() / valid.size
+        valid_pct = 100.0 * np.mean(depth_map > 0)
         logger.info(
             "  -> depth range [%.2f, %.2f], valid=%.1f%% (%.1fs)",
-            float(depth_map[valid].min()),
-            float(depth_map[valid].max()),
-            valid_pct,
-            time.time() - t_ref,
+            float(depth_map[depth_map > 0].min()),
+            float(depth_map[depth_map > 0].max()),
+            valid_pct, time.time() - t_ref,
         )
-
         depth_maps[ref_name] = depth_map
         stem = Path(ref_name).stem
-        npy_path = str(depth_dir / f"depth_map_{i+1:02d}_{stem}.npy")
-        np.save(npy_path, depth_map)
-        png_path = str(depth_dir / f"depth_map_{i+1:02d}_{stem}.png")
-        _save_depth_png(depth_map, png_path)
-        prev_path = str(preview_dir / f"depth_preview_{i+1:02d}_{stem}.png")
-        _save_depth_preview(depth_map, ref_name, prev_path)
+        np.save(str(depth_dir / f"depth_map_{i+1:02d}_{stem}.npy"), depth_map)
+        _save_depth_png(depth_map, str(depth_dir / f"depth_map_{i+1:02d}_{stem}.png"))
+        _save_depth_preview(depth_map, ref_name, str(preview_dir / f"depth_preview_{i+1:02d}_{stem}.png"))
 
-    logger.info(
-        "[INFO] Depth estimation done: %d maps in %.1fs",
-        len(depth_maps), time.time() - t0,
-    )
+    logger.info("[INFO] Depth estimation done: %d maps in %.1fs", len(depth_maps), time.time() - t0)
     return depth_maps
 
 
@@ -459,14 +412,11 @@ def _save_depth_png(depth: np.ndarray, path: str):
     valid = depth > 0
     if not valid.any():
         return
-    d_min = depth[valid].min()
-    d_max = depth[valid].max()
-    if d_max == d_min:
+    d_min, d_max = float(depth[valid].min()), float(depth[valid].max())
+    if d_max <= d_min:
         return
     norm = np.zeros_like(depth, dtype=np.uint16)
-    norm[valid] = (
-        (depth[valid] - d_min) / (d_max - d_min) * 65535
-    ).astype(np.uint16)
+    norm[valid] = ((depth[valid] - d_min) / (d_max - d_min) * 65535).astype(np.uint16)
     cv2.imwrite(path, norm)
 
 
@@ -475,22 +425,18 @@ def _save_depth_preview(depth: np.ndarray, ref_name: str, path: str):
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
-
         valid = depth > 0
         if not valid.any():
             return
-        d_vis = depth.copy().astype(np.float32)
+        d_vis = depth.astype(np.float32).copy()
         d_vis[~valid] = np.nan
-
         fig, ax = plt.subplots(1, 1, figsize=(10, 6))
         im = ax.imshow(d_vis, cmap="plasma", aspect="auto")
         plt.colorbar(im, ax=ax, label="Relative depth (scene units)")
-        ax.set_title(
-            f"Depth map: {ref_name}\nValid: {100*valid.mean():.1f}%"
-        )
+        ax.set_title(f"Depth map: {ref_name}\nValid: {100*valid.mean():.1f}%")
         ax.axis("off")
         plt.tight_layout()
         plt.savefig(path, dpi=100, bbox_inches="tight")
         plt.close()
-    except Exception as e:
-        logger.debug("Depth preview error: %s", e)
+    except Exception as exc:
+        logger.debug("Depth preview error: %s", exc)
