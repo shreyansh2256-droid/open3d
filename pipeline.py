@@ -51,8 +51,9 @@ def apply_cli_overrides(cfg, args):
     for section in ("image", "features", "bundle_adjustment", "depth", "fusion"):
         if section not in cfg:
             cfg[section] = {}
-    if getattr(args, "max_images", None):
-        cfg["image"]["max_images"] = args.max_images
+    # 0 explicitly means "all images" and must override the config value.
+    if getattr(args, "max_images", None) is not None:
+        cfg["image"]["max_images"] = max(0, int(args.max_images))
     if getattr(args, "feature_method", None):
         cfg["features"]["method"] = args.feature_method
     if getattr(args, "use_bundle_adjustment", False):
@@ -356,8 +357,9 @@ def run_pipeline(args):
 
 def _validate_depth_maps(depth_maps, cfg):
     """Check depth maps are not degenerate."""
-    d_min_hyp = 0.5
-    d_max_hyp = 50.0
+    depth_cfg = cfg.get("depth", {})
+    d_min_hyp = float(depth_cfg.get("d_min", 0.5))
+    d_max_hyp = float(depth_cfg.get("d_max", 50.0))
     for name, dm in depth_maps.items():
         if dm is None:
             logger.warning("[DEPTH] %s: None depth map", name)
