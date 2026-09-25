@@ -78,12 +78,21 @@ bundle_adjustment:
 # -- Depth Estimation ---------------------------------------------------------
 depth:
   enabled: true
-  max_depth_images: 10        # Reference images for depth estimation
-  num_neighbors: 2            # Neighbours per reference
+  # Number of reference images used for dense depth estimation.
+  # Previously capped at 10 — the direct cause of only 10 depth maps despite
+  # 73 registered cameras.  Increased to 30 for significantly better scene coverage.
+  # References are selected to span the registered set spatially (linspace by landmark count).
+  max_depth_images: 30
+  # Number of neighbouring views aggregated per reference in the ZNCC plane-sweep.
+  # Increased from 2 to 4: more views improve depth consistency and reject false peaks.
+  num_neighbors: 4
   patch_size: 9               # ZNCC patch window
   num_depth_hypotheses: 96    # Finer adaptive sweep for stable geometry
   ncc_threshold: 0.35         # Reject weak/ambiguous matches
   depth_fill: false            # Never synthesize large regions of geometry
+  # Minimum shared 3D landmarks required to use a camera as a depth neighbour.
+  # Previously hardcoded to 10 via walrus operator; now explicitly configurable.
+  min_shared_landmarks: 10
   # Depth range in scene units (relative)
   d_min: 0.5
   d_max: 50.0

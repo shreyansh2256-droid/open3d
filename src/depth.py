@@ -26,10 +26,29 @@ def compute_homography_plane(
 ) -> np.ndarray:
     """Homography mapping reference pixels on a fronto-parallel plane to neighbour."""
     if normal is None:
-        normal = np.array([0.0, 0.0, 1.0])
+        normal = np.array([0.0, 0.0, 1.0], dtype=np.float64)
+    if not np.isfinite(depth) or depth <= 0.0:
+        raise ValueError(f"Depth hypothesis must be positive and finite; got {depth!r}")
+
+    K1 = np.asarray(K1, dtype=np.float64)
+    K2 = np.asarray(K2, dtype=np.float64)
+    R1 = np.asarray(R1, dtype=np.float64)
+    R2 = np.asarray(R2, dtype=np.float64)
+    t1 = np.asarray(t1, dtype=np.float64).ravel()
+    t2 = np.asarray(t2, dtype=np.float64).ravel()
+    normal = np.asarray(normal, dtype=np.float64).ravel()
+
+    if not (np.all(np.isfinite(K1)) and np.all(np.isfinite(K2)) and np.all(np.isfinite(R1))
+            and np.all(np.isfinite(R2)) and np.all(np.isfinite(t1)) and np.all(np.isfinite(t2))
+            and np.all(np.isfinite(normal))):
+        raise ValueError("Non-finite camera or plane parameters for homography")
+
     R_rel = R2 @ R1.T
     t_rel = t2 - R_rel @ t1
-    return K2 @ (R_rel + np.outer(t_rel, normal) / depth) @ np.linalg.inv(K1)
+    H = K2 @ (R_rel + np.outer(t_rel, normal) / depth) @ np.linalg.inv(K1)
+    if not np.all(np.isfinite(H)):
+        raise ValueError("Non-finite homography produced for depth hypothesis")
+    return H
 
 
 def warp_image(img: np.ndarray, H: np.ndarray) -> np.ndarray:
@@ -43,17 +62,38 @@ def warp_image(img: np.ndarray, H: np.ndarray) -> np.ndarray:
 
 def compute_zncc_image(ref: np.ndarray, warped: np.ndarray, win: int = 9) -> np.ndarray:
     """Compute a per-pixel local zero-mean normalized cross correlation map."""
-    ref_f = ref.astype(np.float32)
-    warp_f = warped.astype(np.float32)
+    ref_f = np.asarray(ref, dtype=np.float32)
+    warp_f = np.asarray(warped, dtype=np.float32)
+
+    if ref_f.shape != warp_f.shape:
+        raise ValueError(f"ZNCC inputs must have the same shape; got {ref_f.shape} and {warp_f.shape}")
+
     mu1 = cv2.boxFilter(ref_f, -1, (win, win))
     mu2 = cv2.boxFilter(warp_f, -1, (win, win))
     ref_c = ref_f - mu1
     warp_c = warp_f - mu2
-    sigma1_sq = cv2.boxFilter(ref_c * ref_c, -1, (win, win))
-    sigma2_sq = cv2.boxFilter(warp_c * warp_c, -1, (win, win))
-    sigma12 = cv2.boxFilter(ref_c * warp_c, -1, (win, win))
-    eps = 1e-6
-    zncc = sigma12 / (np.sqrt(sigma1_sq * sigma2_sq) + eps)
+
+    sigma1_sq = cv2.boxFilter(ref_c * ref_c, -1, (win, win)).astype(np.float32)
+    sigma2_sq = cv2.boxFilter(warp_c * warp_c, -1, (win, win)).astype(np.float32)
+    sigma12 = cv2.boxFilter(ref_c * warp_c, -1, (win, win)).astype(np.float32)
+
+    # Local variances are non-negative in exact arithmetic. Small negative values
+    # here are numerical noise from floating point and must not be fed to sqrt().
+    sigma1_sq = np.nan_to_num(sigma1_sq, nan=0.0, posinf=0.0, neginf=0.0)
+    sigma2_sq = np.nan_to_num(sigma2_sq, nan=0.0, posinf=0.0, neginf=0.0)
+    sigma12 = np.nan_to_num(sigma12, nan=0.0, posinf=0.0, neginf=0.0)
+    sigma1_sq = np.clip(sigma1_sq, 0.0, None)
+    sigma2_sq = np.clip(sigma2_sq, 0.0, None)
+
+    denom = np.sqrt(np.maximum(np.asarray(sigma1_sq * sigma2_sq, dtype=np.float32), 0.0)) + 1e-8
+    denom = np.where(denom > 1e-8, denom, 1e-8)
+    zncc = np.divide(
+        sigma12,
+        denom,
+        out=np.zeros_like(sigma12, dtype=np.float32),
+        where=np.isfinite(denom),
+    )
+    zncc = np.nan_to_num(zncc, nan=0.0, posinf=0.0, neginf=0.0)
     return np.clip(zncc, -1.0, 1.0)
 
 
@@ -164,13 +204,15 @@ def estimate_depth_for_image(
                 valid_warp = (cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
                               if warped.ndim == 3 else warped) > 0
                 zncc = compute_zncc_image(ref_gray, warped, win)
-                agg_score += np.where(valid_warp, zncc, 0.0)
+                zncc = np.nan_to_num(zncc, nan=0.0, posinf=0.0, neginf=0.0)
+                agg_score += np.where(valid_warp & np.isfinite(zncc), zncc, 0.0)
                 valid_count += 1
             except Exception as exc:
                 logger.debug("Depth homography failed at %.3f: %s", d, exc)
 
         if valid_count == 0:
             continue
+        agg_score = np.nan_to_num(agg_score, nan=0.0, posinf=0.0, neginf=0.0)
         agg_score /= valid_count
         better = agg_score > best_score
         second_score = np.where(better, best_score, np.maximum(second_score, agg_score))
@@ -244,14 +286,30 @@ def choose_reference_images(
     image_names: List[str],
     max_depth_images: int,
     n_neighbors: int,
+    cfg: Dict = None,
 ) -> List[Tuple[str, List[str]]]:
-    """Choose references with good landmark support and neighbours with useful baseline."""
+    """Choose references with good landmark support and neighbours with useful baseline.
+
+    Neighbour selection strategy:
+    - Primary criterion: shared landmarks (overlap) — configurable minimum threshold.
+    - Baseline: spread neighbours across the available baseline range rather than
+      always maximising it.  This gives the plane-sweep both short-baseline precision
+      and long-baseline disambiguation.
+    - Fallback: when no candidate has enough shared landmarks, sort ALL registered
+      cameras by spatial distance (camera-centre norm) and take the closest ones.
+      Previously the fallback used index arithmetic on a landmark-count-sorted list,
+      which selected cameras with similar landmark counts, not spatially nearby ones.
+    """
     registered_names = [
         nm for nm in image_names
         if state.cameras.get(nm) is not None and state.cameras[nm].registered
     ]
     if not registered_names:
         return []
+
+    depth_cfg = (cfg or {}).get("depth", {})
+    # Configurable minimum shared landmarks; was hardcoded to 10 via walrus operator.
+    min_shared = int(depth_cfg.get("min_shared_landmarks", 10))
 
     lm_per_cam = {nm: 0 for nm in registered_names}
     observations = {nm: set() for nm in registered_names}
@@ -273,9 +331,9 @@ def choose_reference_images(
 
     centers = {nm: _camera_center(state.cameras[nm]) for nm in registered_names}
     results = []
-    min_shared = int(cfg_shared := 10)
 
     for ref in refs:
+        ref_center = centers[ref]
         candidates = []
         for nm in registered_names:
             if nm == ref:
@@ -283,28 +341,38 @@ def choose_reference_images(
             shared = len(observations[ref].intersection(observations[nm]))
             if shared < min_shared:
                 continue
-            baseline = float(np.linalg.norm(centers[ref] - centers[nm]))
+            baseline = float(np.linalg.norm(ref_center - centers[nm]))
             candidates.append((shared, baseline, nm))
+
         if not candidates:
-            # Fallback to nearest registered cameras, preserving deterministic order.
-            ref_idx = registered_names.index(ref)
-            fallback = []
-            for offset in range(1, len(registered_names)):
-                for sign in (1, -1):
-                    j = ref_idx + sign * offset
-                    if 0 <= j < len(registered_names):
-                        fallback.append(registered_names[j])
-                    if len(fallback) >= n_neighbors:
-                        break
-                if len(fallback) >= n_neighbors:
-                    break
+            # Fallback: sort by SPATIAL distance (camera-centre norm), not by index in
+            # a landmark-count-sorted list.  The old fallback was wrong because
+            # registered_names is ordered by landmark count, not spatial proximity.
+            spatial_sorted = sorted(
+                [nm for nm in registered_names if nm != ref],
+                key=lambda nm: float(np.linalg.norm(ref_center - centers[nm]))
+            )
+            fallback = spatial_sorted[:n_neighbors]
             if fallback:
-                results.append((ref, fallback[:n_neighbors]))
+                results.append((ref, fallback))
             continue
 
-        # Prefer overlap first, then a non-zero useful baseline.
-        candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
-        chosen = [x[2] for x in candidates[:n_neighbors]]
+        # Select neighbours that span a useful range of baselines rather than
+        # always maximising the baseline.  Strategy:
+        #   1. Keep the top-overlap candidates (most shared landmarks).
+        #   2. From those, sample at evenly-spaced baseline quantiles so we get
+        #      at least one short-baseline and one long-baseline neighbour.
+        # This improves plane-sweep stereo: short-baseline gives smooth localisation,
+        # long-baseline resolves depth ambiguity.
+        candidates.sort(key=lambda x: x[0], reverse=True)     # sort by shared DESC
+        top_pool = candidates[: max(n_neighbors * 3, len(candidates))]
+        top_pool.sort(key=lambda x: x[1])                      # sort by baseline ASC
+        if len(top_pool) <= n_neighbors:
+            chosen = [x[2] for x in top_pool]
+        else:
+            idx_spread = np.linspace(0, len(top_pool) - 1, n_neighbors).astype(int)
+            chosen = [top_pool[i][2] for i in idx_spread]
+
         results.append((ref, chosen))
     return results
 
@@ -373,7 +441,7 @@ def run_depth_estimation(
         c.R, c.t, c.registered = cam.R.copy(), cam.t.copy(), cam.registered
         scaled_cameras[nm] = c
 
-    refs_and_neighbors = choose_reference_images(state, image_names, max_refs, n_neighbors)
+    refs_and_neighbors = choose_reference_images(state, image_names, max_refs, n_neighbors, cfg=cfg)
     logger.info(
         "[INFO] Estimating depth for %d images at %dpx "
         "(adaptive plane-sweep ZNCC)...",

@@ -462,7 +462,25 @@ def run_incremental_sfm(
         iteration += 1
         registered_this_round = []
 
-        for name in list(unregistered):
+        # Prioritise cameras with the most verified connections to the already-registered
+        # set.  Registering well-connected cameras first triangulates more 3D points
+        # earlier, which in turn helps subsequently processed cameras accumulate enough
+        # 2D-3D correspondences for PnP.  This does NOT change the algorithm —
+        # only the processing order within each round.
+        registered_set = {nm for nm, c in state.cameras.items() if c.registered}
+
+        def _connectivity_score(nm):
+            score = 0
+            for reg_nm in registered_set:
+                if (reg_nm, nm) in verified or (nm, reg_nm) in verified:
+                    info = verified.get((reg_nm, nm)) or verified.get((nm, reg_nm))
+                    score += info.get("n_verified", 0)
+            return score
+
+        # Sort descending: most-connected cameras first
+        sorted_unregistered = sorted(unregistered, key=_connectivity_score, reverse=True)
+
+        for name in sorted_unregistered:
             cam = cameras.get(name)
             if cam is None:
                 unregistered.remove(name)
@@ -471,6 +489,9 @@ def run_incremental_sfm(
             success = register_camera_pnp(cam, state, verified, features, cfg)
             if success:
                 state.register_camera(cam)
+                # Update registered_set so that cameras later in THIS round can
+                # also benefit from the newly registered camera's landmarks.
+                registered_set.add(name)
                 n_new = triangulate_new_points(cam, state, verified, features, cfg)
                 logger.info(f"  → Triangulated {n_new} new points")
                 registered_this_round.append(name)

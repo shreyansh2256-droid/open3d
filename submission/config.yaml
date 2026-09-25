@@ -8,7 +8,7 @@
 image:
   extensions: [".jpg", ".jpeg", ".JPG", ".JPEG"]
   # 0 = all images; set N for speed (use 80 for ~15 min on CPU)
-  max_images: 0
+  max_images: 80
   # Max dimension for SIFT/matching (1600 = good balance speed vs quality)
   resize_for_processing: 1600
 
@@ -31,10 +31,10 @@ features:
 # -- Feature Matching ---------------------------------------------------------
 matching:
   method: "FLANN"
-  ratio_threshold: 0.75
-  min_matches: 30
+  ratio_threshold: 0.78
+  min_matches: 25
   strategy: "sequential"
-  sequential_window: 15       # Wider window for better graph connectivity
+  sequential_window: 20       # Wider window for better graph connectivity
   cross_check: false
 
 # -- Geometric Verification ---------------------------------------------------
@@ -43,8 +43,8 @@ geometry:
   fundamental_confidence: 0.999
   essential_ransac_threshold: 1.5
   essential_confidence: 0.999
-  min_inliers: 15             # Lower threshold to keep more pairs
-  min_inlier_ratio: 0.15
+  min_inliers: 12             # Keep geometrically useful pairs for SfM graph connectivity
+  min_inlier_ratio: 0.12
 
 # -- Initial Pair Selection ---------------------------------------------------
 init:
@@ -60,10 +60,10 @@ triangulation:
 
 # -- PnP (Camera Registration) ------------------------------------------------
 pnp:
-  min_correspondences: 8        # Lower to register more cameras
-  ransac_threshold: 8.0         # pixels (wider for estimated intrinsics)
+  min_correspondences: 6        # Robust PnP can work with small but clean sets
+  ransac_threshold: 10.0        # pixels (wider for estimated intrinsics)
   ransac_confidence: 0.999
-  max_reprojection_error: 12.0  # pixels
+  max_reprojection_error: 15.0  # pixels
 
 # -- Bundle Adjustment --------------------------------------------------------
 bundle_adjustment:
@@ -78,15 +78,33 @@ bundle_adjustment:
 # -- Depth Estimation ---------------------------------------------------------
 depth:
   enabled: true
-  max_depth_images: 10        # Reference images for depth estimation
-  num_neighbors: 2            # Neighbours per reference
+  # Number of reference images used for dense depth estimation.
+  # Previously capped at 10 — the direct cause of only 10 depth maps despite
+  # 73 registered cameras.  Increased to 30 for significantly better scene coverage.
+  # References are selected to span the registered set spatially (linspace by landmark count).
+  max_depth_images: 30
+  # Number of neighbouring views aggregated per reference in the ZNCC plane-sweep.
+  # Increased from 2 to 4: more views improve depth consistency and reject false peaks.
+  num_neighbors: 4
   patch_size: 9               # ZNCC patch window
-  num_depth_hypotheses: 32    # Sweep steps (fast CPU mode)
-  ncc_threshold: 0.2          # Accept pixels with ZNCC >= this
-  depth_fill: true
+  num_depth_hypotheses: 96    # Finer adaptive sweep for stable geometry
+  ncc_threshold: 0.35         # Reject weak/ambiguous matches
+  depth_fill: false            # Never synthesize large regions of geometry
+  # Minimum shared 3D landmarks required to use a camera as a depth neighbour.
+  # Previously hardcoded to 10 via walrus operator; now explicitly configurable.
+  min_shared_landmarks: 10
   # Depth range in scene units (relative)
   d_min: 0.5
   d_max: 50.0
+  adaptive_depth_range: true
+  adaptive_min_landmarks: 20
+  depth_range_percentiles: [5.0, 95.0]
+  depth_range_padding: 0.20
+  min_depth_range: 2.0
+  max_adaptive_depth: 2000.0
+  confidence_margin: 0.04
+  min_valid_before_fill_pct: 15.0
+  fill_iterations: 1
 
 # -- Dense Fusion -------------------------------------------------------------
 fusion:
