@@ -193,29 +193,31 @@ def register_camera_pnp(
     cfg: Dict,
 ) -> bool:
     """
-    Estimate pose of `cam` using 2D-3D correspondences from already
-    reconstructed landmarks. Returns True on success.
+    Robust camera registration using pooled, deduplicated 2D-3D correspondences.
+    Multiple PnP solvers are tried before rejecting a camera.
     """
     pnp_cfg = cfg.get("pnp", {})
-    min_corr = pnp_cfg.get("min_correspondences", 12)
-    ransac_thresh = pnp_cfg.get("ransac_threshold", 4.0)
-    ransac_conf   = pnp_cfg.get("ransac_confidence", 0.999)
-    max_reproj    = pnp_cfg.get("max_reprojection_error", 6.0)
+    min_corr = int(pnp_cfg.get("min_correspondences", 8))
+    ransac_thresh = float(pnp_cfg.get("ransac_threshold", 8.0))
+    ransac_conf = float(pnp_cfg.get("ransac_confidence", 0.999))
+    max_reproj = float(pnp_cfg.get("max_reprojection_error", 12.0))
 
     name = cam.image_name
     kps = features.get(name, {}).get("keypoints")
     if kps is None or len(kps) == 0:
         return False
 
-    pts2d = []
-    pts3d = []
-
-    # Find 2D-3D correspondences through verified pairs
+    # Pool observations from every registered neighbour. Keep one observation
+    # per landmark so duplicated graph edges cannot overweight a point.
+    correspondences = {}
     for reg_name in list(state.cameras.keys()):
         if not state.cameras[reg_name].registered:
             continue
-        pair_key = (reg_name, name) if (reg_name, name) in verified else \
-                   (name, reg_name) if (name, reg_name) in verified else None
+
+        pair_key = (
+            (reg_name, name) if (reg_name, name) in verified else
+            (name, reg_name) if (name, reg_name) in verified else None
+        )
         if pair_key is None:
             continue
 
@@ -223,21 +225,18 @@ def register_camera_pnp(
         mask = info.get("inlier_mask")
         idx1 = info["idx1"]
         idx2 = info["idx2"]
-        pts1 = info["pts1"]
-        pts2 = info["pts2"]
 
-        # Which index corresponds to reg_name vs name?
         if pair_key[0] == reg_name:
             reg_idx_arr = idx1
             new_idx_arr = idx2
-            new_pts_arr = pts2
+            new_pts_arr = info["pts2"]
         else:
             reg_idx_arr = idx2
             new_idx_arr = idx1
-            new_pts_arr = pts1
+            new_pts_arr = info["pts1"]
 
         if mask is not None:
-            valid = mask
+            valid = np.asarray(mask, dtype=bool)
             reg_idx_arr = reg_idx_arr[valid]
             new_idx_arr = new_idx_arr[valid]
             new_pts_arr = new_pts_arr[valid]
@@ -245,49 +244,99 @@ def register_camera_pnp(
         f2lm_reg = state.feat2lm.get(reg_name, {})
         for ri, ni, pt2 in zip(reg_idx_arr, new_idx_arr, new_pts_arr):
             lm_id = f2lm_reg.get(int(ri))
-            if lm_id is None:
+            if lm_id is None or lm_id in correspondences:
                 continue
             lm = state.landmarks.get(lm_id)
-            if lm is None:
+            if lm is None or not np.isfinite(lm.xyz).all():
                 continue
-            pts3d.append(lm.xyz)
-            pts2d.append(pt2)
+            correspondences[lm_id] = (
+                lm.xyz.copy(), np.asarray(pt2, dtype=np.float64)
+            )
 
-    if len(pts3d) < min_corr:
-        logger.debug(f"  {name}: only {len(pts3d)} 2D-3D correspondences (need {min_corr})")
-        return False
-
-    pts3d_arr = np.array(pts3d, dtype=np.float64)
-    pts2d_arr = np.array(pts2d, dtype=np.float64)
-
-    try:
-        success, rvec, tvec, inliers = cv2.solvePnPRansac(
-            pts3d_arr, pts2d_arr, cam.K, None,
-            reprojectionError=ransac_thresh,
-            confidence=ransac_conf,
-            iterationsCount=200,
-            flags=cv2.SOLVEPNP_ITERATIVE,
+    if len(correspondences) < min_corr:
+        logger.debug(
+            f"  {name}: only {len(correspondences)} unique 2D-3D "
+            f"correspondences (need {min_corr})"
         )
-    except cv2.error as e:
-        logger.debug(f"  PnP error for {name}: {e}")
         return False
 
-    if not success or inliers is None or len(inliers) < min_corr:
+    pts3d_arr = np.asarray([v[0] for v in correspondences.values()], dtype=np.float64)
+    pts2d_arr = np.asarray([v[1] for v in correspondences.values()], dtype=np.float64)
+
+    def try_pnp(flag):
+        try:
+            return cv2.solvePnPRansac(
+                pts3d_arr, pts2d_arr, cam.K, None,
+                reprojectionError=ransac_thresh,
+                confidence=ransac_conf,
+                iterationsCount=500,
+                flags=flag,
+            )
+        except cv2.error:
+            return False, None, None, None
+
+    # SQPnP is useful for small correspondence sets; EPNP and ITERATIVE are
+    # fallbacks for older OpenCV builds and well-conditioned larger sets.
+    flags = []
+    if hasattr(cv2, "SOLVEPNP_SQPNP"):
+        flags.append(cv2.SOLVEPNP_SQPNP)
+    flags.extend([cv2.SOLVEPNP_EPNP, cv2.SOLVEPNP_ITERATIVE])
+
+    best = None
+    for flag in flags:
+        result = try_pnp(flag)
+        if result[0]:
+            _, rvec, tvec, inliers = result
+            if inliers is not None and len(inliers) >= min_corr:
+                score = len(inliers)
+                if best is None or score > best[0]:
+                    best = (score, rvec, tvec, inliers)
+
+    if best is None:
+        logger.debug(f"  {name}: all PnP solvers failed")
         return False
 
+    _, rvec, tvec, inliers = best
     R_pnp, _ = cv2.Rodrigues(rvec)
     t_pnp = tvec.ravel()
 
-    # Verify reprojection error on inliers
-    in_idx = inliers.ravel()
-    err = reprojection_error(pts2d_arr[in_idx], pts3d_arr[in_idx], R_pnp, t_pnp, cam.K)
-    if np.median(err) > max_reproj:
-        logger.debug(f"  {name}: high median reprojection error ({np.median(err):.2f}px)")
+    # Refine using the RANSAC inliers.
+    in_idx = np.asarray(inliers).ravel()
+    if len(in_idx) >= 4:
+        try:
+            ok_refine, rvec_ref, tvec_ref = cv2.solvePnP(
+                pts3d_arr[in_idx], pts2d_arr[in_idx], cam.K, None,
+                rvec=rvec, tvec=tvec, useExtrinsicGuess=True,
+                flags=cv2.SOLVEPNP_ITERATIVE,
+            )
+            if ok_refine:
+                R_pnp, _ = cv2.Rodrigues(rvec_ref)
+                t_pnp = tvec_ref.ravel()
+        except cv2.error:
+            pass
+
+    err = reprojection_error(
+        pts2d_arr[in_idx], pts3d_arr[in_idx],
+        R_pnp, t_pnp, cam.K
+    )
+    finite_err = err[np.isfinite(err)]
+    if len(finite_err) == 0:
+        return False
+
+    median_err = float(np.median(finite_err))
+    if median_err > max_reproj:
+        logger.debug(
+            f"  {name}: high median reprojection error "
+            f"({median_err:.2f}px)"
+        )
         return False
 
     cam.set_pose(R_pnp, t_pnp)
-    logger.info(f"[INFO] Registered camera: {name}  ({len(in_idx)} inliers, "
-                f"err={np.median(err):.2f}px)")
+    logger.info(
+        f"[INFO] Registered camera: {name} "
+        f"({len(in_idx)} inliers, err={median_err:.2f}px, "
+        f"corr={len(pts3d_arr)})"
+    )
     return True
 
 
