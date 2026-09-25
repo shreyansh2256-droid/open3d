@@ -31,10 +31,10 @@ features:
 # -- Feature Matching ---------------------------------------------------------
 matching:
   method: "FLANN"
-  ratio_threshold: 0.75
-  min_matches: 30
+  ratio_threshold: 0.78
+  min_matches: 25
   strategy: "sequential"
-  sequential_window: 15       # Wider window for better graph connectivity
+  sequential_window: 20       # Wider window for better graph connectivity
   cross_check: false
 
 # -- Geometric Verification ---------------------------------------------------
@@ -43,8 +43,8 @@ geometry:
   fundamental_confidence: 0.999
   essential_ransac_threshold: 1.5
   essential_confidence: 0.999
-  min_inliers: 15             # Lower threshold to keep more pairs
-  min_inlier_ratio: 0.15
+  min_inliers: 12             # Keep geometrically useful pairs for SfM graph connectivity
+  min_inlier_ratio: 0.12
 
 # -- Initial Pair Selection ---------------------------------------------------
 init:
@@ -60,10 +60,10 @@ triangulation:
 
 # -- PnP (Camera Registration) ------------------------------------------------
 pnp:
-  min_correspondences: 8        # Lower to register more cameras
-  ransac_threshold: 8.0         # pixels (wider for estimated intrinsics)
+  min_correspondences: 6        # Robust PnP can work with small but clean sets
+  ransac_threshold: 10.0        # pixels (wider for estimated intrinsics)
   ransac_confidence: 0.999
-  max_reprojection_error: 12.0  # pixels
+  max_reprojection_error: 15.0  # pixels
 
 # -- Bundle Adjustment --------------------------------------------------------
 bundle_adjustment:
