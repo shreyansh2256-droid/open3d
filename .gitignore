@@ -1,0 +1,22 @@
+﻿# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Original UAV dataset
+*.jpg
+*.jpeg
+*.JPG
+*.JPEG
+
+# Temporary/debug files
+*.tmp
+*.log
+
+# Keep generated reconstruction outputs
+!outputs/
+!outputs/**/*.png
+!outputs/**/*.json
+!outputs/**/*.txt
+!outputs/**/*.pdf
+!outputs/**/*.ply

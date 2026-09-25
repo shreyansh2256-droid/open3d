@@ -1,0 +1,119 @@
+# PIXEL-OPS Photogrammetry Pipeline Configuration
+# All tunable parameters - no magic numbers in source code.
+# Dataset: Lighthouse Survey DB4 (senseFly albris, 7152x5368 px)
+# Camera: senseFly albris, fl=8.02mm, FocalPlaneXRes=7142.857 px/cm
+# Computed fx at 1600px = 1281.6 px  (verified from EXIF)
+
+# -- Image Discovery ----------------------------------------------------------
+image:
+  extensions: [".jpg", ".jpeg", ".JPG", ".JPEG"]
+  # 0 = all images; set N for speed (use 80 for ~15 min on CPU)
+  max_images: 80
+  # Max dimension for SIFT/matching (1600 = good balance speed vs quality)
+  resize_for_processing: 1600
+
+# -- Camera Model -------------------------------------------------------------
+camera:
+  # Focal length ratio used ONLY when EXIF is unavailable
+  focal_length_ratio: 1.2
+  focal_length_override: null
+  distortion_model: "none"
+
+# -- Feature Extraction -------------------------------------------------------
+features:
+  method: "SIFT"
+  sift_nfeatures: 6000        # Higher = better matching, slower
+  sift_contrast_threshold: 0.02
+  sift_edge_threshold: 10
+  orb_nfeatures: 6000
+  save_visualizations: false
+
+# -- Feature Matching ---------------------------------------------------------
+matching:
+  method: "FLANN"
+  ratio_threshold: 0.75
+  min_matches: 30
+  strategy: "sequential"
+  sequential_window: 15       # Wider window for better graph connectivity
+  cross_check: false
+
+# -- Geometric Verification ---------------------------------------------------
+geometry:
+  fundamental_ransac_threshold: 2.0   # pixels (slightly looser for UAV images)
+  fundamental_confidence: 0.999
+  essential_ransac_threshold: 1.5
+  essential_confidence: 0.999
+  min_inliers: 15             # Lower threshold to keep more pairs
+  min_inlier_ratio: 0.15
+
+# -- Initial Pair Selection ---------------------------------------------------
+init:
+  min_initial_inliers: 30
+  max_initial_score_pairs: 20
+
+# -- Triangulation ------------------------------------------------------------
+triangulation:
+  max_reprojection_error: 6.0   # pixels (wider for estimated intrinsics)
+  min_parallax_degrees: 0.5
+  min_depth: 0.01
+  max_depth: 2000.0             # UAV images can have large depth range
+
+# -- PnP (Camera Registration) ------------------------------------------------
+pnp:
+  min_correspondences: 8        # Lower to register more cameras
+  ransac_threshold: 8.0         # pixels (wider for estimated intrinsics)
+  ransac_confidence: 0.999
+  max_reprojection_error: 12.0  # pixels
+
+# -- Bundle Adjustment --------------------------------------------------------
+bundle_adjustment:
+  enabled: false
+  max_iterations: 50
+  ftol: 1.0e-4
+  xtol: 1.0e-4
+  gtol: 1.0e-8
+  loss_function: "huber"
+  max_points_for_ba: 5000
+
+# -- Depth Estimation ---------------------------------------------------------
+depth:
+  enabled: true
+  max_depth_images: 10        # Reference images for depth estimation
+  num_neighbors: 2            # Neighbours per reference
+  patch_size: 9               # ZNCC patch window
+  num_depth_hypotheses: 32    # Sweep steps (fast CPU mode)
+  ncc_threshold: 0.2          # Accept pixels with ZNCC >= this
+  depth_fill: true
+  # Depth range in scene units (relative)
+  d_min: 0.5
+  d_max: 50.0
+
+# -- Dense Fusion -------------------------------------------------------------
+fusion:
+  # voxel_size is auto-scaled based on scene extent (0.002 * scene_scale)
+  voxel_size: 0.05
+  statistical_outlier_nb: 20
+  statistical_outlier_std: 2.5
+  # Radius outlier is DISABLED by default - auto-scale activates it correctly
+  radius_outlier_radius: 0.1
+  radius_outlier_min_points: 5
+  max_points_per_depth_image: 50000
+
+# -- Visualization ------------------------------------------------------------
+visualization:
+  point_size: 2.0
+  background_color: [0.1, 0.1, 0.1]
+  show_cameras: true
+  camera_scale: 0.3
+  zoom: 0.5
+
+# -- Output -------------------------------------------------------------------
+output:
+  sparse_ply: "sparse_points.ply"
+  dense_ply: "points.ply"
+  screenshot: "reconstruction_screenshot.png"
+  report_json: "reconstruction_report.json"
+  report_txt: "reconstruction_report.txt"
+  dataset_report: "dataset_report.json"
+  feature_report: "feature_report.json"
+  matching_report: "matching_report.json"

@@ -1,0 +1,10 @@
+opencv-python-headless>=4.8.0
+numpy>=1.24.0
+scipy>=1.10.0
+Pillow>=9.0.0
+open3d>=0.17.0
+matplotlib>=3.6.0
+imageio>=2.20.0
+PyYAML>=6.0
+exifread>=3.0.0
+fpdf2>=2.7.0
