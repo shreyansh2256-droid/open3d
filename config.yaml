@@ -81,12 +81,21 @@ depth:
   max_depth_images: 10        # Reference images for depth estimation
   num_neighbors: 2            # Neighbours per reference
   patch_size: 9               # ZNCC patch window
-  num_depth_hypotheses: 32    # Sweep steps (fast CPU mode)
-  ncc_threshold: 0.2          # Accept pixels with ZNCC >= this
-  depth_fill: true
+  num_depth_hypotheses: 96    # Finer adaptive sweep for stable geometry
+  ncc_threshold: 0.35         # Reject weak/ambiguous matches
+  depth_fill: false            # Never synthesize large regions of geometry
   # Depth range in scene units (relative)
   d_min: 0.5
   d_max: 50.0
+  adaptive_depth_range: true
+  adaptive_min_landmarks: 20
+  depth_range_percentiles: [5.0, 95.0]
+  depth_range_padding: 0.20
+  min_depth_range: 2.0
+  max_adaptive_depth: 2000.0
+  confidence_margin: 0.04
+  min_valid_before_fill_pct: 15.0
+  fill_iterations: 1
 
 # -- Dense Fusion -------------------------------------------------------------
 fusion:
