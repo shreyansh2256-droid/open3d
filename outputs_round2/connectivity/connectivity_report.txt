@@ -1,0 +1,11 @@
+PIXEL-OPS Round-2 Cross-Video Connectivity Report
+============================================================
+
+AU_Alfresco_1_Task 1 - Saturday.MOV <-> AU_Alfresco_2_Task 1 - Saturday.MOV: 14 verified matches  [CONNECTED]
+AU_Alfresco_1_Task 1 - Saturday.MOV <-> AU_Alfresco_3_Task 1 - Saturday.MOV: 0 verified matches  [DISCONNECTED]
+AU_Alfresco_1_Task 1 - Saturday.MOV <-> AU_Alfresco_4_Task 1 - Saturday.MOV: 13 verified matches  [CONNECTED]
+AU_Alfresco_2_Task 1 - Saturday.MOV <-> AU_Alfresco_3_Task 1 - Saturday.MOV: 0 verified matches  [DISCONNECTED]
+AU_Alfresco_2_Task 1 - Saturday.MOV <-> AU_Alfresco_4_Task 1 - Saturday.MOV: 0 verified matches  [DISCONNECTED]
+AU_Alfresco_3_Task 1 - Saturday.MOV <-> AU_Alfresco_4_Task 1 - Saturday.MOV: 155 verified matches  [CONNECTED]
+
+Recommendation: check_disconnected_pairs

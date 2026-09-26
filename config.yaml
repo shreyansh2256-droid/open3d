@@ -1,20 +1,71 @@
 # PIXEL-OPS Photogrammetry Pipeline Configuration
 # All tunable parameters - no magic numbers in source code.
-# Dataset: Lighthouse Survey DB4 (senseFly albris, 7152x5368 px)
-# Camera: senseFly albris, fl=8.02mm, FocalPlaneXRes=7142.857 px/cm
-# Computed fx at 1600px = 1281.6 px  (verified from EXIF)
+# Round 2: Four 1280x720 @ 59.94fps MOV videos (AU Alfresco, "Alfresco" site).
+#   Video 1: 3406 frames, 56.8s
+#   Video 2: 3542 frames, 59.1s
+#   Video 3: 2839 frames, 47.4s
+#   Video 4: 2518 frames, 42.0s
+#   Total: 12,305 source frames
+
+# -- Video Input (Round 2) ----------------------------------------------------
+video:
+  # Directory containing .MOV files (overridden by --video-dir CLI flag)
+  video_dir: "C:\\Users\\anuti\\Downloads\\OneDrive_2026-09-26\\2nd round"
+  extensions: [".mov", ".mp4", ".avi", ".mkv", ".m4v"]
+  # Extract one frame every N seconds. At 2.0s: ~28 frames per video (~113 total).
+  frame_interval_seconds: 2.0
+  # Optional: skip first N seconds (camera startup, pointing at ground, etc.)
+  start_offset_seconds: 0.0
+  # Optional: skip last N seconds
+  end_trim_seconds: 0.0
+  # Max frames per video (0 = no limit). Set e.g. 40 for fast test runs.
+  max_frames_per_video: 0
+  # Output directory for extracted JPEG frames (relative to output_dir).
+  # IMPORTANT: this dir must NOT be auto-discovered by the image pipeline.
+  frames_dir: "video_frames"
+  # Manifest file name (saved to output_dir)
+  manifest: "video_frames_manifest.json"
+  # JPEG write quality (1-100)
+  jpeg_quality: 95
+
+  # ── Quality filter (Laplacian variance sharpness) ──────────────────────────
+  quality:
+    enabled: true
+    # Scoring done on frames downscaled to this max dimension.
+    max_dim: 960
+    # Adaptive threshold uses per-video statistics:
+    #   threshold = max(min_absolute_variance, median - mad_k * robust_sigma)
+    # then capped to never remove more than max_removal_percent.
+    mad_k: 3.0
+    min_absolute_variance: 6.0
+    max_removal_percent: 35.0
+    min_keep_frames: 5
+
+  # ── Near-duplicate filter ──────────────────────────────────────────────────
+  near_duplicate:
+    enabled: true
+    # Mean absolute pixel difference (normalised 0..1). Lower = stricter.
+    mean_abs_diff_threshold: 0.012
+    # Pearson correlation of 64x36 thumbnail. Higher = stricter.
+    correlation_threshold: 0.999
+    # Require BOTH metrics to flag a frame as duplicate (conservative).
+    require_both_metrics: true
 
 # -- Image Discovery ----------------------------------------------------------
+# For Round 2, image discovery is handled via video_frames/
+# The pipeline reads from the extracted frames directory.
 image:
   extensions: [".jpg", ".jpeg", ".JPG", ".JPEG"]
-  # 0 = all images; set N for speed (use 80 for ~15 min on CPU)
-  max_images: 80
-  # Max dimension for SIFT/matching (1600 = good balance speed vs quality)
-  resize_for_processing: 1600
+  # 0 = use all extracted frames; set N to limit for testing
+  max_images: 0
+  # Max dimension for SIFT/matching.
+  # All Round-2 frames are 1280x720; setting 1280 uses them at native resolution.
+  resize_for_processing: 1280
 
 # -- Camera Model -------------------------------------------------------------
+# Round-2 frames are 1280x720. No EXIF focal length in extracted JPEGs.
+# We use focal_length_ratio × max(1280, 720) = 1.2 × 1280 = 1536 px (estimated).
 camera:
-  # Focal length ratio used ONLY when EXIF is unavailable
   focal_length_ratio: 1.2
   focal_length_override: null
   distortion_model: "none"
@@ -22,7 +73,7 @@ camera:
 # -- Feature Extraction -------------------------------------------------------
 features:
   method: "SIFT"
-  sift_nfeatures: 6000        # Higher = better matching, slower
+  sift_nfeatures: 6000
   sift_contrast_threshold: 0.02
   sift_edge_threshold: 10
   orb_nfeatures: 6000
@@ -33,17 +84,17 @@ matching:
   method: "FLANN"
   ratio_threshold: 0.78
   min_matches: 25
-  strategy: "sequential"
-  sequential_window: 20       # Wider window for better graph connectivity
+  strategy: "exhaustive"
+  sequential_window: 25
   cross_check: false
 
 # -- Geometric Verification ---------------------------------------------------
 geometry:
-  fundamental_ransac_threshold: 2.0   # pixels (slightly looser for UAV images)
+  fundamental_ransac_threshold: 2.0
   fundamental_confidence: 0.999
   essential_ransac_threshold: 1.5
   essential_confidence: 0.999
-  min_inliers: 12             # Keep geometrically useful pairs for SfM graph connectivity
+  min_inliers: 12
   min_inlier_ratio: 0.12
 
 # -- Initial Pair Selection ---------------------------------------------------
@@ -53,17 +104,17 @@ init:
 
 # -- Triangulation ------------------------------------------------------------
 triangulation:
-  max_reprojection_error: 6.0   # pixels (wider for estimated intrinsics)
+  max_reprojection_error: 6.0
   min_parallax_degrees: 0.5
   min_depth: 0.01
-  max_depth: 2000.0             # UAV images can have large depth range
+  max_depth: 2000.0
 
 # -- PnP (Camera Registration) ------------------------------------------------
 pnp:
-  min_correspondences: 6        # Robust PnP can work with small but clean sets
-  ransac_threshold: 10.0        # pixels (wider for estimated intrinsics)
+  min_correspondences: 6
+  ransac_threshold: 10.0
   ransac_confidence: 0.999
-  max_reprojection_error: 15.0  # pixels
+  max_reprojection_error: 15.0
 
 # -- Bundle Adjustment --------------------------------------------------------
 bundle_adjustment:
@@ -78,27 +129,14 @@ bundle_adjustment:
 # -- Depth Estimation ---------------------------------------------------------
 depth:
   enabled: true
-  # Number of reference images used for dense depth estimation.
-  # Previously capped at 10 — the direct cause of only 10 depth maps despite
-  # 73 registered cameras.  Increased to 30 for significantly better scene coverage.
-  # References are selected to span the registered set spatially (linspace by landmark count).
-  max_depth_images: 30
-  # Number of neighbouring views aggregated per reference in the ZNCC plane-sweep.
-  # Increased from 2 to 4: more views improve depth consistency and reject false peaks.
+  max_depth_images: 50
   num_neighbors: 4
-  patch_size: 9               # ZNCC patch window
-  num_depth_hypotheses: 96    # Finer adaptive sweep for stable geometry
-  ncc_threshold: 0.35         # Reject weak/ambiguous matches
-  depth_fill: false            # Never synthesize large regions of geometry
-  # Minimum shared 3D landmarks required to use a camera as a depth neighbour.
+  patch_size: 9
+  num_depth_hypotheses: 96
+  ncc_threshold: 0.35
+  depth_fill: false
   min_shared_landmarks: 10
-  # Minimum 3D landmarks a camera must observe to qualify as a REFERENCE
-  # (i.e. be the viewpoint for which we estimate a depth map).
-  # After the track-propagation fix, landmark counts per camera will be higher.
-  # Set conservatively; cameras below this threshold are skipped as references
-  # (but can still be used as neighbours).
   min_landmarks_for_ref: 20
-  # Depth range in scene units (relative)
   d_min: 0.5
   d_max: 50.0
   adaptive_depth_range: true
@@ -113,11 +151,9 @@ depth:
 
 # -- Dense Fusion -------------------------------------------------------------
 fusion:
-  # voxel_size is auto-scaled based on scene extent (0.002 * scene_scale)
   voxel_size: 0.05
   statistical_outlier_nb: 20
   statistical_outlier_std: 2.5
-  # Radius outlier is DISABLED by default - auto-scale activates it correctly
   radius_outlier_radius: 0.1
   radius_outlier_min_points: 5
   max_points_per_depth_image: 50000
@@ -132,11 +168,15 @@ visualization:
 
 # -- Output -------------------------------------------------------------------
 output:
-  sparse_ply: "sparse_points.ply"
-  dense_ply: "points.ply"
-  screenshot: "reconstruction_screenshot.png"
-  report_json: "reconstruction_report.json"
-  report_txt: "reconstruction_report.txt"
-  dataset_report: "dataset_report.json"
-  feature_report: "feature_report.json"
-  matching_report: "matching_report.json"
+  # Round-2 output structure
+  output_dir: "outputs_round2"
+  sparse_ply: "sparse/sparse_points.ply"
+  dense_ply: "dense/point_cloud.ply"
+  screenshot: "visualization/reconstruction_screenshot.png"
+  report_json: "reports/reconstruction_report.json"
+  report_txt: "reports/reconstruction_report.txt"
+  dataset_report: "reports/dataset_report.json"
+  feature_report: "reports/feature_report.json"
+  matching_report: "reports/matching_report.json"
+  connectivity_json: "connectivity/connectivity_report.json"
+  connectivity_txt: "connectivity/connectivity_report.txt"

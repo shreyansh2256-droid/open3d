@@ -1,0 +1,44 @@
+{
+  "generated_at": "2026-09-26T13:31:55",
+  "n_videos": 4,
+  "sample_frames_per_video": 5,
+  "pairs": {
+    "AU_Alfresco_1_Task 1 - Saturday.MOV <-> AU_Alfresco_2_Task 1 - Saturday.MOV": {
+      "video_a": "AU_Alfresco_1_Task 1 - Saturday.MOV",
+      "video_b": "AU_Alfresco_2_Task 1 - Saturday.MOV",
+      "verified_matches": 14,
+      "connected": true
+    },
+    "AU_Alfresco_1_Task 1 - Saturday.MOV <-> AU_Alfresco_3_Task 1 - Saturday.MOV": {
+      "video_a": "AU_Alfresco_1_Task 1 - Saturday.MOV",
+      "video_b": "AU_Alfresco_3_Task 1 - Saturday.MOV",
+      "verified_matches": 0,
+      "connected": false
+    },
+    "AU_Alfresco_1_Task 1 - Saturday.MOV <-> AU_Alfresco_4_Task 1 - Saturday.MOV": {
+      "video_a": "AU_Alfresco_1_Task 1 - Saturday.MOV",
+      "video_b": "AU_Alfresco_4_Task 1 - Saturday.MOV",
+      "verified_matches": 13,
+      "connected": true
+    },
+    "AU_Alfresco_2_Task 1 - Saturday.MOV <-> AU_Alfresco_3_Task 1 - Saturday.MOV": {
+      "video_a": "AU_Alfresco_2_Task 1 - Saturday.MOV",
+      "video_b": "AU_Alfresco_3_Task 1 - Saturday.MOV",
+      "verified_matches": 0,
+      "connected": false
+    },
+    "AU_Alfresco_2_Task 1 - Saturday.MOV <-> AU_Alfresco_4_Task 1 - Saturday.MOV": {
+      "video_a": "AU_Alfresco_2_Task 1 - Saturday.MOV",
+      "video_b": "AU_Alfresco_4_Task 1 - Saturday.MOV",
+      "verified_matches": 0,
+      "connected": false
+    },
+    "AU_Alfresco_3_Task 1 - Saturday.MOV <-> AU_Alfresco_4_Task 1 - Saturday.MOV": {
+      "video_a": "AU_Alfresco_3_Task 1 - Saturday.MOV",
+      "video_b": "AU_Alfresco_4_Task 1 - Saturday.MOV",
+      "verified_matches": 155,
+      "connected": true
+    }
+  },
+  "recommendation": "check_disconnected_pairs"
+}

@@ -553,7 +553,7 @@ def run_incremental_sfm(
         state.feat2lm[nm] = {}
 
     # ── 1. Select initial pair ────────────────────────────────────────────────
-    init_pair = select_initial_pair(verified, cfg, image_names)
+    init_pair = select_initial_pair(verified, cfg, image_names, cameras)
     if init_pair is None:
         logger.error("[ERROR] Could not find a valid initial pair! "
                      "Check that images have sufficient overlap.")

@@ -1,0 +1,740 @@
+{
+  "image_count": 70,
+  "images": [
+    {
+      "name": "AU_Alfresco_1_Task_1_Saturday_V1_f000000_t000000.000.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_1_Task_1_Saturday_V1_f000120_t000002.002.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_1_Task_1_Saturday_V1_f000360_t000006.006.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_1_Task_1_Saturday_V1_f000480_t000008.008.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_1_Task_1_Saturday_V1_f000599_t000009.993.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_1_Task_1_Saturday_V1_f000719_t000011.995.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_1_Task_1_Saturday_V1_f000839_t000013.997.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_1_Task_1_Saturday_V1_f000959_t000015.999.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_1_Task_1_Saturday_V1_f001079_t000018.001.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_1_Task_1_Saturday_V1_f001199_t000020.003.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_1_Task_1_Saturday_V1_f001558_t000025.993.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_1_Task_1_Saturday_V1_f001678_t000027.995.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_1_Task_1_Saturday_V1_f001798_t000029.997.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_1_Task_1_Saturday_V1_f002398_t000040.007.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_1_Task_1_Saturday_V1_f002877_t000047.998.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_1_Task_1_Saturday_V1_f002997_t000050.000.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_1_Task_1_Saturday_V1_f003117_t000052.002.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_1_Task_1_Saturday_V1_f003237_t000054.004.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_1_Task_1_Saturday_V1_f003357_t000056.006.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_2_Task_1_Saturday_V2_f000000_t000000.000.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_2_Task_1_Saturday_V2_f000240_t000004.004.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_2_Task_1_Saturday_V2_f000360_t000006.006.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_2_Task_1_Saturday_V2_f001558_t000025.993.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_2_Task_1_Saturday_V2_f001678_t000027.995.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_2_Task_1_Saturday_V2_f001798_t000029.997.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_2_Task_1_Saturday_V2_f001918_t000031.999.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_2_Task_1_Saturday_V2_f002038_t000034.001.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_2_Task_1_Saturday_V2_f002158_t000036.003.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_2_Task_1_Saturday_V2_f002278_t000038.005.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_2_Task_1_Saturday_V2_f002398_t000040.007.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_2_Task_1_Saturday_V2_f002517_t000041.992.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_2_Task_1_Saturday_V2_f002637_t000043.994.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_2_Task_1_Saturday_V2_f002757_t000045.996.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_2_Task_1_Saturday_V2_f002877_t000047.998.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_2_Task_1_Saturday_V2_f002997_t000050.000.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_2_Task_1_Saturday_V2_f003117_t000052.002.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_2_Task_1_Saturday_V2_f003237_t000054.004.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_2_Task_1_Saturday_V2_f003357_t000056.006.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_2_Task_1_Saturday_V2_f003477_t000058.008.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_3_Task_1_Saturday_V3_f000360_t000006.006.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_3_Task_1_Saturday_V3_f000480_t000008.008.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_3_Task_1_Saturday_V3_f000599_t000009.993.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_3_Task_1_Saturday_V3_f000719_t000011.995.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_3_Task_1_Saturday_V3_f000839_t000013.997.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_3_Task_1_Saturday_V3_f000959_t000015.999.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_3_Task_1_Saturday_V3_f001079_t000018.001.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_3_Task_1_Saturday_V3_f001199_t000020.003.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_3_Task_1_Saturday_V3_f001319_t000022.005.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_3_Task_1_Saturday_V3_f001439_t000024.007.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_3_Task_1_Saturday_V3_f001558_t000025.993.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_3_Task_1_Saturday_V3_f001678_t000027.995.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_3_Task_1_Saturday_V3_f001798_t000029.997.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_3_Task_1_Saturday_V3_f001918_t000031.999.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_3_Task_1_Saturday_V3_f002038_t000034.001.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_3_Task_1_Saturday_V3_f002158_t000036.003.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_4_Task_1_Saturday_V4_f000000_t000000.000.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_4_Task_1_Saturday_V4_f000120_t000002.002.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_4_Task_1_Saturday_V4_f000240_t000004.004.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_4_Task_1_Saturday_V4_f000360_t000006.006.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_4_Task_1_Saturday_V4_f000480_t000008.008.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_4_Task_1_Saturday_V4_f000599_t000009.993.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_4_Task_1_Saturday_V4_f000719_t000011.995.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_4_Task_1_Saturday_V4_f000839_t000013.997.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_4_Task_1_Saturday_V4_f000959_t000015.999.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_4_Task_1_Saturday_V4_f001079_t000018.001.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_4_Task_1_Saturday_V4_f001199_t000020.003.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_4_Task_1_Saturday_V4_f001558_t000025.993.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_4_Task_1_Saturday_V4_f001678_t000027.995.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_4_Task_1_Saturday_V4_f001798_t000029.997.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    },
+    {
+      "name": "AU_Alfresco_4_Task_1_Saturday_V4_f002517_t000041.992.jpg",
+      "width": 1280,
+      "height": 720,
+      "aspect_ratio": 1.7778,
+      "has_exif": false,
+      "focal_length_px": null
+    }
+  ],
+  "gpu": {
+    "has_cuda": false,
+    "gpu_name": "N/A",
+    "vram_mb": 0
+  },
+  "pipeline_config": {
+    "video": {
+      "video_dir": "C:\\Users\\anuti\\Downloads\\OneDrive_2026-09-26\\2nd round",
+      "extensions": [
+        ".mov",
+        ".mp4",
+        ".avi",
+        ".mkv",
+        ".m4v"
+      ],
+      "frame_interval_seconds": 2.0,
+      "start_offset_seconds": 0.0,
+      "end_trim_seconds": 0.0,
+      "max_frames_per_video": 0,
+      "frames_dir": "video_frames",
+      "manifest": "video_frames_manifest.json",
+      "jpeg_quality": 95,
+      "quality": {
+        "enabled": true,
+        "max_dim": 960,
+        "mad_k": 3.0,
+        "min_absolute_variance": 6.0,
+        "max_removal_percent": 35.0,
+        "min_keep_frames": 5
+      },
+      "near_duplicate": {
+        "enabled": true,
+        "mean_abs_diff_threshold": 0.012,
+        "correlation_threshold": 0.999,
+        "require_both_metrics": true
+      }
+    },
+    "image": {
+      "extensions": [
+        ".jpg",
+        ".jpeg",
+        ".JPG",
+        ".JPEG"
+      ],
+      "max_images": 0,
+      "resize_for_processing": 1280
+    },
+    "camera": {
+      "focal_length_ratio": 1.2,
+      "focal_length_override": null,
+      "distortion_model": "none"
+    },
+    "features": {
+      "method": "SIFT",
+      "sift_nfeatures": 6000,
+      "sift_contrast_threshold": 0.02,
+      "sift_edge_threshold": 10,
+      "orb_nfeatures": 6000,
+      "save_visualizations": false
+    },
+    "matching": {
+      "method": "FLANN",
+      "ratio_threshold": 0.78,
+      "min_matches": 25,
+      "strategy": "exhaustive",
+      "sequential_window": 25,
+      "cross_check": false
+    },
+    "geometry": {
+      "fundamental_ransac_threshold": 2.0,
+      "fundamental_confidence": 0.999,
+      "essential_ransac_threshold": 1.5,
+      "essential_confidence": 0.999,
+      "min_inliers": 12,
+      "min_inlier_ratio": 0.12
+    },
+    "init": {
+      "min_initial_inliers": 30,
+      "max_initial_score_pairs": 20
+    },
+    "triangulation": {
+      "max_reprojection_error": 6.0,
+      "min_parallax_degrees": 0.5,
+      "min_depth": 0.01,
+      "max_depth": 2000.0
+    },
+    "pnp": {
+      "min_correspondences": 6,
+      "ransac_threshold": 10.0,
+      "ransac_confidence": 0.999,
+      "max_reprojection_error": 15.0
+    },
+    "bundle_adjustment": {
+      "enabled": false,
+      "max_iterations": 50,
+      "ftol": 0.0001,
+      "xtol": 0.0001,
+      "gtol": 1e-08,
+      "loss_function": "huber",
+      "max_points_for_ba": 5000
+    },
+    "depth": {
+      "enabled": true,
+      "max_depth_images": 50,
+      "num_neighbors": 4,
+      "patch_size": 9,
+      "num_depth_hypotheses": 96,
+      "ncc_threshold": 0.35,
+      "depth_fill": false,
+      "min_shared_landmarks": 10,
+      "min_landmarks_for_ref": 20,
+      "d_min": 0.5,
+      "d_max": 50.0,
+      "adaptive_depth_range": true,
+      "adaptive_min_landmarks": 20,
+      "depth_range_percentiles": [
+        5.0,
+        95.0
+      ],
+      "depth_range_padding": 0.2,
+      "min_depth_range": 2.0,
+      "max_adaptive_depth": 2000.0,
+      "confidence_margin": 0.04,
+      "min_valid_before_fill_pct": 15.0,
+      "fill_iterations": 1
+    },
+    "fusion": {
+      "voxel_size": 0.05,
+      "statistical_outlier_nb": 20,
+      "statistical_outlier_std": 2.5,
+      "radius_outlier_radius": 0.1,
+      "radius_outlier_min_points": 5,
+      "max_points_per_depth_image": 50000
+    },
+    "visualization": {
+      "point_size": 2.0,
+      "background_color": [
+        0.1,
+        0.1,
+        0.1
+      ],
+      "show_cameras": true,
+      "camera_scale": 0.3,
+      "zoom": 0.5
+    },
+    "output": {
+      "output_dir": "outputs_round2",
+      "sparse_ply": "sparse/sparse_points.ply",
+      "dense_ply": "dense/point_cloud.ply",
+      "screenshot": "visualization/reconstruction_screenshot.png",
+      "report_json": "reports/reconstruction_report.json",
+      "report_txt": "reports/reconstruction_report.txt",
+      "dataset_report": "reports/dataset_report.json",
+      "feature_report": "reports/feature_report.json",
+      "matching_report": "reports/matching_report.json",
+      "connectivity_json": "connectivity/connectivity_report.json",
+      "connectivity_txt": "connectivity/connectivity_report.txt"
+    }
+  },
+  "summary": {
+    "unique_resolutions": [
+      [
+        1280,
+        720
+      ]
+    ],
+    "min_width": 1280,
+    "max_width": 1280,
+    "min_height": 720,
+    "max_height": 720,
+    "exif_available": 0,
+    "exif_percent": 0.0,
+    "mean_focal_length_px": null,
+    "estimated_camera_model": "Pinhole"
+  }
+}

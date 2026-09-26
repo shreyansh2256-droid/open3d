@@ -1,0 +1,94 @@
+{
+  "timestamp": "2026-09-26T08:06:34.234892Z",
+  "input": {
+    "n_images": 70,
+    "input_dir": "outputs_round2\\video_frames"
+  },
+  "reconstruction": {
+    "n_registered_cameras": 19,
+    "n_sparse_points": 2945,
+    "bundle_adjustment_ran": false
+  },
+  "features": {
+    "total_keypoints": 327549,
+    "mean_per_image": 4679.3
+  },
+  "matching": {
+    "n_pairs_matched": 2415,
+    "n_pairs_verified": 544,
+    "mean_verified_matches": 124.8
+  },
+  "depth": {
+    "n_depth_maps": 19,
+    "mean_valid_depth_pct": 12.77
+  },
+  "sparse_cloud": {
+    "point_count": 2945,
+    "bbox": {
+      "min": [
+        -97.54792589956102,
+        -50.581356540809686,
+        37.88762461209518
+      ],
+      "max": [
+        94.49741591207797,
+        36.435092160863064,
+        414.1489625403226
+      ],
+      "extents": [
+        192.045341811639,
+        87.01644870167274,
+        376.2613379282274
+      ]
+    },
+    "centroid": [
+      -16.47469886229207,
+      4.871157428793352,
+      95.26958527439402
+    ],
+    "mean_density_pts_per_unit3": 0.0005
+  },
+  "dense_cloud": {
+    "point_count": 357256,
+    "bbox": {
+      "min": [
+        -108.42618560791016,
+        -48.583858489990234,
+        26.583240509033203
+      ],
+      "max": [
+        70.59442901611328,
+        59.170989990234375,
+        238.26687622070312
+      ],
+      "extents": [
+        179.02061462402344,
+        107.75484848022461,
+        211.68363571166992
+      ]
+    },
+    "centroid": [
+      -25.449968955297546,
+      -0.6655400973809779,
+      85.09649595398263
+    ],
+    "mean_density_pts_per_unit3": 0.0875
+  },
+  "environment": {
+    "python": "3.14.5",
+    "os": "Windows",
+    "libraries": {
+      "cv2": "5.0.0",
+      "numpy": "2.5.1",
+      "scipy": "1.18.0",
+      "open3d": "0.20.0",
+      "PIL": "12.3.0",
+      "matplotlib": "3.11.2"
+    },
+    "gpu": {
+      "has_cuda": false,
+      "gpu_name": "N/A",
+      "vram_mb": 0
+    }
+  }
+}

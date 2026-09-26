@@ -63,6 +63,11 @@ def discover_images(input_dir: str, extensions: List[str], max_images: int = 0) 
         "outputs", "submission", "src", "debug", "depth", "depth_preview",
         "features", "matches", "__pycache__", ".git", "node_modules",
         "venv", ".venv", "env",
+        # Round-2: never auto-discover extracted video frames or old output dirs
+        "video_frames", "extracted_frames",
+        "outputs_round2", "outputs_final", "outputs_final2", "outputs_final3",
+        "outputs_test", "outputs_test2",
+        "connectivity", "sparse", "dense", "visualization", "reports",
     }
 
     ext_set = {e.lower() for e in extensions}

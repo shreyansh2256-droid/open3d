@@ -1,0 +1,37 @@
+============================================================
+PIXEL-OPS Photogrammetry Reconstruction Report
+============================================================
+Timestamp:          2026-09-26T08:06:34.234892Z
+
+─── Input ───────────────────────────────────────────────
+Input images:       70
+
+─── Reconstruction ──────────────────────────────────────
+Registered cameras: 19
+Sparse 3D points:   2,945
+Bundle adjustment:  False
+
+─── Features ────────────────────────────────────────────
+Total keypoints:    327,549
+Mean per image:     4679
+
+─── Matching ────────────────────────────────────────────
+Pairs matched:      2415
+Pairs verified:     544
+Mean verified matches: 125
+
+─── Depth Maps ──────────────────────────────────────────
+Depth maps:         19
+Mean valid depth:   12.8%
+
+─── Dense Cloud ─────────────────────────────────────────
+Dense points:       357,256
+Bounding box:       [-108.426, -48.584, 26.583] → [70.594, 59.171, 238.267]
+Extents:            [179.021, 107.755, 211.684]
+Centroid:           [-25.45, -0.666, 85.096]
+
+─── Environment ─────────────────────────────────────────
+Python:             3.14.5
+OS:                 Windows
+GPU:                N/A
+============================================================

@@ -1,22 +1,60 @@
-﻿# Python
+# Python
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
 
-# Original UAV dataset
+# Original UAV images (Round-1 dataset)
 *.jpg
 *.jpeg
 *.JPG
 *.JPEG
+*.png
+# Keep PNG in outputs/ and visualization/
+!outputs_round2/**/*.png
+!outputs_round2/**/*.json
+!outputs_round2/**/*.txt
+!outputs_round2/**/*.ply
+!outputs_round2/**/*.pdf
 
-# Temporary/debug files
+# Round-2 MOV source videos (large, not committed)
+*.MOV
+*.mov
+*.mp4
+*.MP4
+*.avi
+*.AVI
+*.mkv
+
+# Extracted video frames (generated data, not committed)
+video_frames/
+extracted_frames/
+
+# Old Round-1 output directories
+outputs/
+outputs_final/
+outputs_final2/
+outputs_final3/
+outputs_test/
+outputs_test2/
+
+# Submission directory (generated, large)
+submission/
+
+# Temporary probe / debug files
+tmp_probe/
 *.tmp
 *.log
 
-# Keep generated reconstruction outputs
-!outputs/
-!outputs/**/*.png
-!outputs/**/*.json
-!outputs/**/*.txt
-!outputs/**/*.pdf
-!outputs/**/*.ply
+# NumPy binary files (depth maps, large)
+outputs_round2/**/depth/*.npy
+
+# IDE
+.kilo/
+.vscode/
+.idea/
+
+# Virtual environments
+venv/
+.venv/
+env/
