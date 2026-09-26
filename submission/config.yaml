@@ -91,8 +91,13 @@ depth:
   ncc_threshold: 0.35         # Reject weak/ambiguous matches
   depth_fill: false            # Never synthesize large regions of geometry
   # Minimum shared 3D landmarks required to use a camera as a depth neighbour.
-  # Previously hardcoded to 10 via walrus operator; now explicitly configurable.
   min_shared_landmarks: 10
+  # Minimum 3D landmarks a camera must observe to qualify as a REFERENCE
+  # (i.e. be the viewpoint for which we estimate a depth map).
+  # After the track-propagation fix, landmark counts per camera will be higher.
+  # Set conservatively; cameras below this threshold are skipped as references
+  # (but can still be used as neighbours).
+  min_landmarks_for_ref: 20
   # Depth range in scene units (relative)
   d_min: 0.5
   d_max: 50.0

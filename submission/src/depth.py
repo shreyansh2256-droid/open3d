@@ -193,7 +193,8 @@ def estimate_depth_for_image(
 
     for d in depth_hyps:
         agg_score = np.zeros((H_img, W_img), dtype=np.float32)
-        valid_count = 0
+        valid_count_map = np.zeros((H_img, W_img), dtype=np.int32)
+        any_neighbor_warped = False
         for nm, cam_n, img_n in nei_list:
             try:
                 H_hom = compute_homography_plane(
@@ -205,15 +206,25 @@ def estimate_depth_for_image(
                               if warped.ndim == 3 else warped) > 0
                 zncc = compute_zncc_image(ref_gray, warped, win)
                 zncc = np.nan_to_num(zncc, nan=0.0, posinf=0.0, neginf=0.0)
-                agg_score += np.where(valid_warp & np.isfinite(zncc), zncc, 0.0)
-                valid_count += 1
+                pixel_contrib = valid_warp & np.isfinite(zncc)
+                agg_score += np.where(pixel_contrib, zncc, 0.0)
+                # Per-pixel: only count this neighbor where it actually has content.
+                valid_count_map += pixel_contrib.astype(np.int32)
+                any_neighbor_warped = True
             except Exception as exc:
                 logger.debug("Depth homography failed at %.3f: %s", d, exc)
 
-        if valid_count == 0:
+        if not any_neighbor_warped:
             continue
-        agg_score = np.nan_to_num(agg_score, nan=0.0, posinf=0.0, neginf=0.0)
-        agg_score /= valid_count
+        # Per-pixel division: only divide where at least one neighbor contributed.
+        # Pixels where no neighbor had valid warp content remain 0.
+        with np.errstate(invalid="ignore", divide="ignore"):
+            agg_score = np.where(
+                valid_count_map > 0,
+                agg_score / valid_count_map.astype(np.float32),
+                0.0,
+            )
+
         better = agg_score > best_score
         second_score = np.where(better, best_score, np.maximum(second_score, agg_score))
         best_score = np.maximum(best_score, agg_score)
@@ -288,17 +299,23 @@ def choose_reference_images(
     n_neighbors: int,
     cfg: Dict = None,
 ) -> List[Tuple[str, List[str]]]:
-    """Choose references with good landmark support and neighbours with useful baseline.
+    """Choose reference cameras for depth estimation with spatial diversity.
 
-    Neighbour selection strategy:
-    - Primary criterion: shared landmarks (overlap) — configurable minimum threshold.
-    - Baseline: spread neighbours across the available baseline range rather than
-      always maximising it.  This gives the plane-sweep both short-baseline precision
-      and long-baseline disambiguation.
-    - Fallback: when no candidate has enough shared landmarks, sort ALL registered
-      cameras by spatial distance (camera-centre norm) and take the closest ones.
-      Previously the fallback used index arithmetic on a landmark-count-sorted list,
-      which selected cameras with similar landmark counts, not spatially nearby ones.
+    Reference selection — greedy farthest-point sampling on camera centres:
+    1. Seed with the camera that has the most landmarks (best scene coverage).
+    2. Greedily add the registered camera whose minimum distance to all
+       already-selected references is maximised (maximises spread).
+    3. Only cameras with at least min_lm_for_ref landmarks qualify as references.
+    4. Stop at max_depth_images.
+    This ensures spatial/angular coverage of the camera trajectory instead of
+    potentially clustering selections in the high-landmark region.
+
+    Neighbour selection (per reference):
+    - Hard overlap gate: only cameras with >= min_shared shared landmarks qualify.
+    - Sample n_neighbors at evenly-spaced baseline quantiles from the qualifying
+      pool so the plane-sweep gets both short-baseline precision and long-baseline
+      depth disambiguation.
+    - Fallback to spatially nearest cameras when no candidate passes the gate.
     """
     registered_names = [
         nm for nm in image_names
@@ -308,8 +325,9 @@ def choose_reference_images(
         return []
 
     depth_cfg = (cfg or {}).get("depth", {})
-    # Configurable minimum shared landmarks; was hardcoded to 10 via walrus operator.
     min_shared = int(depth_cfg.get("min_shared_landmarks", 10))
+    # Minimum landmarks a camera must observe to be considered as a reference.
+    min_lm_for_ref = int(depth_cfg.get("min_landmarks_for_ref", 20))
 
     lm_per_cam = {nm: 0 for nm in registered_names}
     observations = {nm: set() for nm in registered_names}
@@ -319,19 +337,45 @@ def choose_reference_images(
                 lm_per_cam[nm] += 1
                 observations[nm].add(lm_id)
 
-    sorted_cams = sorted(registered_names, key=lambda x: lm_per_cam[x], reverse=True)
-    if max_depth_images > 0:
-        if len(sorted_cams) <= max_depth_images:
-            refs = sorted_cams
-        else:
-            idx = np.linspace(0, len(sorted_cams) - 1, max_depth_images).astype(int)
-            refs = [sorted_cams[i] for i in idx]
-    else:
-        refs = sorted_cams
-
     centers = {nm: _camera_center(state.cameras[nm]) for nm in registered_names}
-    results = []
 
+    # Candidate references: registered cameras with enough landmark support.
+    ref_candidates = [nm for nm in registered_names if lm_per_cam[nm] >= min_lm_for_ref]
+    if not ref_candidates:
+        # Fallback: all registered cameras (no landmark-count gate).
+        ref_candidates = list(registered_names)
+
+    if max_depth_images <= 0 or len(ref_candidates) <= max_depth_images:
+        refs = sorted(ref_candidates, key=lambda x: lm_per_cam[x], reverse=True)
+    else:
+        # Greedy farthest-point sampling for spatial diversity.
+        # Seed: camera with the most landmarks.
+        seed = max(ref_candidates, key=lambda x: lm_per_cam[x])
+        refs = [seed]
+        remaining = [nm for nm in ref_candidates if nm != seed]
+        centers_arr = {nm: centers[nm] for nm in ref_candidates}
+
+        while len(refs) < max_depth_images and remaining:
+            # For each remaining candidate, compute its minimum distance to any
+            # already-selected reference.
+            best_nm = None
+            best_min_dist = -1.0
+            for nm in remaining:
+                c = centers_arr[nm]
+                min_dist = min(
+                    float(np.linalg.norm(c - centers_arr[r]))
+                    for r in refs
+                )
+                if min_dist > best_min_dist:
+                    best_min_dist = min_dist
+                    best_nm = nm
+            if best_nm is None:
+                break
+            refs.append(best_nm)
+            remaining.remove(best_nm)
+
+    # For each selected reference, find neighbours.
+    results = []
     for ref in refs:
         ref_center = centers[ref]
         candidates = []
@@ -345,9 +389,7 @@ def choose_reference_images(
             candidates.append((shared, baseline, nm))
 
         if not candidates:
-            # Fallback: sort by SPATIAL distance (camera-centre norm), not by index in
-            # a landmark-count-sorted list.  The old fallback was wrong because
-            # registered_names is ordered by landmark count, not spatial proximity.
+            # Fallback: spatially nearest registered cameras.
             spatial_sorted = sorted(
                 [nm for nm in registered_names if nm != ref],
                 key=lambda nm: float(np.linalg.norm(ref_center - centers[nm]))
@@ -357,16 +399,12 @@ def choose_reference_images(
                 results.append((ref, fallback))
             continue
 
-        # Select neighbours that span a useful range of baselines rather than
-        # always maximising the baseline.  Strategy:
-        #   1. Keep the top-overlap candidates (most shared landmarks).
-        #   2. From those, sample at evenly-spaced baseline quantiles so we get
-        #      at least one short-baseline and one long-baseline neighbour.
-        # This improves plane-sweep stereo: short-baseline gives smooth localisation,
-        # long-baseline resolves depth ambiguity.
-        candidates.sort(key=lambda x: x[0], reverse=True)     # sort by shared DESC
+        # Sample n_neighbors at evenly-spaced baseline quantiles within the
+        # overlap-qualified pool.  Gives short-baseline precision + long-baseline
+        # disambiguation without always picking the most-distant cameras.
+        candidates.sort(key=lambda x: x[0], reverse=True)
         top_pool = candidates[: max(n_neighbors * 3, len(candidates))]
-        top_pool.sort(key=lambda x: x[1])                      # sort by baseline ASC
+        top_pool.sort(key=lambda x: x[1])   # baseline ASC
         if len(top_pool) <= n_neighbors:
             chosen = [x[2] for x in top_pool]
         else:
@@ -375,6 +413,7 @@ def choose_reference_images(
 
         results.append((ref, chosen))
     return results
+
 
 
 def load_image_gray_direct(img_path: Path, max_dim: int = 0) -> Optional[np.ndarray]:

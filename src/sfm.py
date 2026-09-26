@@ -195,6 +195,16 @@ def register_camera_pnp(
     """
     Robust camera registration using pooled, deduplicated 2D-3D correspondences.
     Multiple PnP solvers are tried before rejecting a camera.
+
+    After a successful registration the PnP-inlier correspondences are committed
+    to the SfM state so that the newly registered camera becomes a fully-connected
+    node in the landmark graph:
+      state.feat2lm[name][new_feat_idx] = lm_id
+      state.landmarks[lm_id].observations[name] = new_feat_idx
+    Without this step every newly registered camera would have an empty feat2lm,
+    causing triangulate_new_points() to create duplicate landmarks for the tracks
+    that were already used by PnP, and breaking shared-landmark counts for depth
+    reference selection and future PnP candidates.
     """
     pnp_cfg = cfg.get("pnp", {})
     min_corr = int(pnp_cfg.get("min_correspondences", 8))
@@ -209,7 +219,9 @@ def register_camera_pnp(
 
     # Pool observations from every registered neighbour. Keep one observation
     # per landmark so duplicated graph edges cannot overweight a point.
-    correspondences = {}
+    # Also store the new-camera feature index so we can propagate the track
+    # after a successful PnP.
+    correspondences = {}   # lm_id -> (xyz_3d, pt2d, new_feat_idx)
     for reg_name in list(state.cameras.keys()):
         if not state.cameras[reg_name].registered:
             continue
@@ -249,8 +261,11 @@ def register_camera_pnp(
             lm = state.landmarks.get(lm_id)
             if lm is None or not np.isfinite(lm.xyz).all():
                 continue
+            # Store xyz, pt2d, AND the new camera's feature index.
             correspondences[lm_id] = (
-                lm.xyz.copy(), np.asarray(pt2, dtype=np.float64)
+                lm.xyz.copy(),
+                np.asarray(pt2, dtype=np.float64),
+                int(ni),          # ← new: new-camera keypoint index
             )
 
     if len(correspondences) < min_corr:
@@ -260,8 +275,11 @@ def register_camera_pnp(
         )
         return False
 
-    pts3d_arr = np.asarray([v[0] for v in correspondences.values()], dtype=np.float64)
-    pts2d_arr = np.asarray([v[1] for v in correspondences.values()], dtype=np.float64)
+    # Build ordered arrays for PnP (insertion order = key order in Python 3.7+)
+    lm_ids_ordered = list(correspondences.keys())
+    pts3d_arr = np.asarray([correspondences[lid][0] for lid in lm_ids_ordered], dtype=np.float64)
+    pts2d_arr = np.asarray([correspondences[lid][1] for lid in lm_ids_ordered], dtype=np.float64)
+    new_feat_idxs_ordered = [correspondences[lid][2] for lid in lm_ids_ordered]
 
     def try_pnp(flag):
         try:
@@ -331,13 +349,38 @@ def register_camera_pnp(
         )
         return False
 
+    # ── Pose accepted: set it and propagate tracks ────────────────────────────
     cam.set_pose(R_pnp, t_pnp)
+
+    # Ensure feat2lm entry exists for the new camera.
+    if name not in state.feat2lm:
+        state.feat2lm[name] = {}
+
+    # For every final RANSAC inlier, record the 3D-track observation in the
+    # new camera.  This is the critical step that was previously missing:
+    # without it feat2lm[name] remained empty after registration, causing
+    # triangulate_new_points() to create duplicate landmarks for these tracks
+    # and breaking shared-landmark counts for future SfM and depth estimation.
+    for j in in_idx:
+        lm_id = lm_ids_ordered[j]
+        new_feat_idx = new_feat_idxs_ordered[j]
+        # Guard: skip if this feature index already maps to a different landmark
+        # (can happen if the same keypoint appeared in two verified pairs).
+        existing = state.feat2lm[name].get(new_feat_idx)
+        if existing is not None and existing != lm_id:
+            continue
+        state.feat2lm[name][new_feat_idx] = lm_id
+        lm = state.landmarks.get(lm_id)
+        if lm is not None:
+            lm.observations[name] = new_feat_idx
+
     logger.info(
         f"[INFO] Registered camera: {name} "
         f"({len(in_idx)} inliers, err={median_err:.2f}px, "
-        f"corr={len(pts3d_arr)})"
+        f"corr={len(pts3d_arr)}, tracks_propagated={len(in_idx)})"
     )
     return True
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
