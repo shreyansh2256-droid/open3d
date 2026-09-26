@@ -73,6 +73,31 @@ class SfMState:
             return np.empty((0, 3))
         return np.array([lm.rgb for lm in self.landmarks.values()], dtype=np.uint8)
 
+    def track_consistency_summary(self) -> Dict[str, float]:
+        """Return lightweight consistency stats for feat2lm ↔ landmark.observations."""
+        total_obs = 0
+        per_cam = {}
+        inconsistent = 0
+        max_obs = 0
+        for lm in self.landmarks.values():
+            total_obs += len(lm.observations)
+            max_obs = max(max_obs, len(lm.observations))
+            for img_name, kp_idx in lm.observations.items():
+                per_cam[img_name] = per_cam.get(img_name, 0) + 1
+                mapped = self.feat2lm.get(img_name, {}).get(int(kp_idx))
+                if mapped != lm.id:
+                    inconsistent += 1
+        avg_obs = (total_obs / len(self.landmarks)) if self.landmarks else 0.0
+        summary = {
+            "total_landmarks": len(self.landmarks),
+            "total_landmark_observations": total_obs,
+            "average_observations_per_landmark": float(avg_obs),
+            "max_observations_per_landmark": int(max_obs),
+            "inconsistent_mappings": int(inconsistent),
+            "observations_per_registered_camera": {k: int(v) for k, v in sorted(per_cam.items())},
+        }
+        return summary
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Colour assignment
@@ -393,11 +418,21 @@ def triangulate_new_points(
     verified: Dict,
     features: Dict,
     cfg: Dict,
-) -> int:
-    """Triangulate new 3D points using newly registered camera."""
+):
+    """Triangulate only genuinely new pairs while propagating existing landmarks.
+
+    Each verified match is handled individually according to:
+      A) reg feature mapped, new feature unmapped -> propagate existing landmark
+      B) neither mapped -> triangulate a new landmark
+      C) new feature already mapped -> skip
+    """
     name = new_cam.image_name
     n_added = 0
-    tri_cfg = cfg.get("triangulation", {})
+    n_propagated = 0
+    n_skipped = 0
+
+    if name not in state.feat2lm:
+        state.feat2lm[name] = {}
 
     for reg_name, reg_cam in state.cameras.items():
         if not reg_cam.registered or reg_name == name:
@@ -421,7 +456,6 @@ def triangulate_new_points(
             pts1_all = pts1_all[mask]
             pts2_all = pts2_all[mask]
 
-        # Decide which is reg vs new
         if pair_key[0] == reg_name:
             reg_idx_arr, new_idx_arr = idx1_all, idx2_all
             reg_pts, new_pts = pts1_all, pts2_all
@@ -431,27 +465,55 @@ def triangulate_new_points(
 
         f2lm_reg = state.feat2lm.get(reg_name, {})
         f2lm_new = state.feat2lm.get(name, {})
-        if name not in state.feat2lm:
-            state.feat2lm[name] = {}
 
-        # Only triangulate un-matched pairs
-        new_match_mask = np.array([
-            int(ri) not in f2lm_reg and int(ni) not in f2lm_new
-            for ri, ni in zip(reg_idx_arr, new_idx_arr)
-        ], dtype=bool)
+        new_pairs = []
+        for ri, ni, reg_pt, new_pt in zip(reg_idx_arr, new_idx_arr, reg_pts, new_pts):
+            ri_i = int(ri)
+            ni_i = int(ni)
 
-        if not new_match_mask.any():
+            if ni_i in f2lm_new:
+                # Case C: new feature already mapped; do not overwrite.
+                n_skipped += 1
+                continue
+
+            lm_id = f2lm_reg.get(ri_i)
+            if lm_id is not None:
+                # Case A: propagate existing landmark to the new camera.
+                lm = state.landmarks.get(lm_id)
+                if lm is None:
+                    continue
+                existing = state.feat2lm[name].get(ni_i)
+                if existing is not None and existing != lm_id:
+                    logger.debug(
+                        "[SfM] skip conflicting propagation: reg=%s[%d]->lm=%d, new=%s[%d]->lm=%d",
+                        reg_name,
+                        ri_i,
+                        lm_id,
+                        name,
+                        ni_i,
+                        existing,
+                    )
+                    continue
+                state.feat2lm[name][ni_i] = int(lm_id)
+                lm.observations[name] = ni_i
+                n_propagated += 1
+                continue
+
+            # Case B: genuine new pair; triangulate later.
+            new_pairs.append((reg_pt, new_pt, ri_i, ni_i))
+
+        if not new_pairs:
             continue
 
-        reg_pts_new = reg_pts[new_match_mask]
-        new_pts_new = new_pts[new_match_mask]
-        reg_idx_new = reg_idx_arr[new_match_mask]
-        new_idx_new = new_idx_arr[new_match_mask]
+        reg_pts_new = np.asarray([p[0] for p in new_pairs], dtype=np.float64)
+        new_pts_new = np.asarray([p[1] for p in new_pairs], dtype=np.float64)
+        reg_idx_new = np.asarray([p[2] for p in new_pairs], dtype=np.int32)
+        new_idx_new = np.asarray([p[3] for p in new_pairs], dtype=np.int32)
 
         pts3d = triangulate_points(reg_pts_new, new_pts_new, reg_cam.P, new_cam.P)
         valid = filter_triangulated_points(pts3d, reg_pts_new, new_pts_new, reg_cam, new_cam, cfg)
 
-        for i, (v, xyz, ri, ni) in enumerate(zip(valid, pts3d, reg_idx_new, new_idx_new)):
+        for v, xyz, ri, ni in zip(valid, pts3d, reg_idx_new, new_idx_new):
             if not v:
                 continue
             lm = state.add_landmark(xyz)
@@ -461,7 +523,13 @@ def triangulate_new_points(
             state.feat2lm[name][int(ni)] = lm.id
             n_added += 1
 
-    return n_added
+    logger.info(
+        "[INFO] Triangulated %d new points; propagated %d existing; skipped %d already-mapped",
+        n_added,
+        n_propagated,
+        n_skipped,
+    )
+    return n_added, n_propagated
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -500,29 +568,43 @@ def run_incremental_sfm(
     unregistered = [nm for nm in image_names if nm not in {init_pair[0], init_pair[1]}]
     max_iter = len(unregistered) + 1
     iteration = 0
+    stale_rounds = 0          # consecutive rounds with zero registrations
+    max_stale_rounds = 2      # allow 2 empty retries before giving up
 
-    while unregistered and iteration < max_iter:
+    while unregistered and iteration < max_iter and stale_rounds <= max_stale_rounds:
         iteration += 1
         registered_this_round = []
 
         # Prioritise cameras with the most verified connections to the already-registered
         # set.  Registering well-connected cameras first triangulates more 3D points
         # earlier, which in turn helps subsequently processed cameras accumulate enough
-        # 2D-3D correspondences for PnP.  This does NOT change the algorithm —
+        # 2D-3D correspondences for PnP.  This does NOT change the algorithm --
         # only the processing order within each round.
         registered_set = {nm for nm, c in state.cameras.items() if c.registered}
 
         def _connectivity_score(nm):
+            """Score by number of 2D-3D correspondences the camera could find.
+
+            Previously this counted only verified-pair connections.  Now we
+            additionally count how many mapped landmarks exist in the
+            registered cameras that share a verified pair, giving a much
+            better estimate of PnP solvability.
+            """
             score = 0
             for reg_nm in registered_set:
                 if (reg_nm, nm) in verified or (nm, reg_nm) in verified:
                     info = verified.get((reg_nm, nm)) or verified.get((nm, reg_nm))
-                    score += info.get("n_verified", 0)
+                    n_ver = info.get("n_verified", 0)
+                    # Weight by how many features in the registered camera
+                    # are actually mapped to landmarks (PnP can use them).
+                    n_mapped = len(state.feat2lm.get(reg_nm, {}))
+                    score += n_ver + n_mapped
             return score
 
         # Sort descending: most-connected cameras first
         sorted_unregistered = sorted(unregistered, key=_connectivity_score, reverse=True)
 
+        n_failed_pnp = 0
         for name in sorted_unregistered:
             cam = cameras.get(name)
             if cam is None:
@@ -535,19 +617,53 @@ def run_incremental_sfm(
                 # Update registered_set so that cameras later in THIS round can
                 # also benefit from the newly registered camera's landmarks.
                 registered_set.add(name)
-                n_new = triangulate_new_points(cam, state, verified, features, cfg)
-                logger.info(f"  → Triangulated {n_new} new points")
+                n_new, n_prop = triangulate_new_points(cam, state, verified, features, cfg)
+                logger.info(
+                    "  -> Triangulated %d new points; propagated %d existing",
+                    n_new, n_prop,
+                )
                 registered_this_round.append(name)
+            else:
+                n_failed_pnp += 1
 
         for nm in registered_this_round:
             unregistered.remove(nm)
 
-        if not registered_this_round:
-            logger.info(f"[INFO] No more cameras can be registered ({len(unregistered)} remaining)")
-            break
+        if registered_this_round:
+            stale_rounds = 0   # reset: progress was made
+            logger.info(
+                "[SFM] Round %d: registered %d cameras, %d failed, %d remaining",
+                iteration, len(registered_this_round), n_failed_pnp, len(unregistered),
+            )
+        else:
+            stale_rounds += 1
+            logger.info(
+                "[SFM] Round %d: 0 registered (%d failed), stale=%d/%d, %d remaining",
+                iteration, n_failed_pnp, stale_rounds, max_stale_rounds,
+                len(unregistered),
+            )
+            if stale_rounds > max_stale_rounds:
+                logger.info(
+                    "[INFO] No more cameras can be registered "
+                    "(%d remaining after %d stale rounds)",
+                    len(unregistered), max_stale_rounds,
+                )
+                break
 
     n_reg = state.n_registered()
     n_pts = state.n_points()
+    summary = state.track_consistency_summary()
+    logger.info(
+        "[TRACK-CHECK] total_landmarks=%d total_obs=%d avg_obs_per_landmark=%.2f "
+        "max_obs_per_landmark=%d inconsistent_mappings=%d",
+        summary["total_landmarks"],
+        summary["total_landmark_observations"],
+        summary["average_observations_per_landmark"],
+        summary["max_observations_per_landmark"],
+        summary["inconsistent_mappings"],
+    )
+    for img_name, count in summary["observations_per_registered_camera"].items():
+        logger.info("[TRACK-CHECK] camera=%s observations=%d", img_name, count)
     logger.info(f"[INFO] Final cameras: {n_reg}/{len(image_names)}")
     logger.info(f"[INFO] Final sparse points: {n_pts:,}")
 
